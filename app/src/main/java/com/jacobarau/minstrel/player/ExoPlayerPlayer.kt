@@ -79,6 +79,10 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
         exoPlayer.seekToPreviousMediaItem()
     }
 
+    override fun skipToTrack(index: Int) {
+        exoPlayer.seekTo(index, 0)
+    }
+
     override fun stop() {
         exoPlayer.stop()
         _playbackState.value = PlaybackState.Stopped

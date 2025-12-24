@@ -11,6 +11,7 @@ interface Player {
     fun togglePlayPause()
     fun skipToNext()
     fun skipToPrevious()
+    fun skipToTrack(index: Int)
     fun stop()
     fun release()
 }

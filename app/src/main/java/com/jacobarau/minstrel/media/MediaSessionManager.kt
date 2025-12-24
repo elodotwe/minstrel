@@ -1,6 +1,7 @@
 package com.jacobarau.minstrel.media
 
 import android.content.Context
+import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import com.jacobarau.minstrel.player.Player
@@ -9,6 +10,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -42,8 +44,8 @@ class MediaSessionManager @Inject constructor(
         }
 
         job = CoroutineScope(Dispatchers.Main).launch {
-            player.playbackState.collect { state ->
-                val playbackState = PlaybackStateCompat.Builder()
+            player.playbackState.combine(player.currentTrack) { state, track ->
+                val playbackStateBuilder = PlaybackStateCompat.Builder()
                     .setActions(
                         PlaybackStateCompat.ACTION_PLAY or
                                 PlaybackStateCompat.ACTION_PAUSE or
@@ -55,9 +57,12 @@ class MediaSessionManager @Inject constructor(
                         0,
                         1.0f
                     )
-                    .build()
-                mediaSession.setPlaybackState(playbackState)
-            }
+                mediaSession.setPlaybackState(playbackStateBuilder.build())
+
+                val metadataBuilder = MediaMetadataCompat.Builder()
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track?.filename)
+                mediaSession.setMetadata(metadataBuilder.build())
+            }.collect {}
         }
     }
 

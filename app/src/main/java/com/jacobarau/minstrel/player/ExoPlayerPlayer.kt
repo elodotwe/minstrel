@@ -19,6 +19,9 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Stopped)
     override val playbackState = _playbackState.asStateFlow()
 
+    private val _currentTrack = MutableStateFlow<Track?>(null)
+    override val currentTrack = _currentTrack.asStateFlow()
+
     init {
         exoPlayer.addListener(object : ExoPlayerListener.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -38,12 +41,13 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     }
 
     private fun updatePlaybackState() {
-        val currentTrack = tracks.getOrNull(exoPlayer.currentMediaItemIndex) ?: return
+        val currentTrack = tracks.getOrNull(exoPlayer.currentMediaItemIndex)
+        _currentTrack.value = currentTrack
 
         _playbackState.value = when {
-            exoPlayer.isPlaying -> PlaybackState.Playing(currentTrack)
+            exoPlayer.isPlaying -> currentTrack?.let { PlaybackState.Playing(it) } ?: PlaybackState.Stopped
             exoPlayer.playbackState == ExoPlayer.STATE_IDLE || exoPlayer.playbackState == ExoPlayer.STATE_ENDED -> PlaybackState.Stopped
-            else -> PlaybackState.Paused(currentTrack)
+            else -> currentTrack?.let { PlaybackState.Paused(it) } ?: PlaybackState.Stopped
         }
     }
 

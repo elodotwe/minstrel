@@ -22,7 +22,10 @@ class MediaStoreTrackRepository @Inject constructor(
         val query = {
             val trackList = mutableListOf<Track>()
             val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
-            val projection = arrayOf(MediaStore.Audio.Media._ID)
+            val projection = arrayOf(
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.DATA
+            )
             val selection = MediaStore.Audio.Media.IS_MUSIC + " != 0"
             val sortOrder = MediaStore.Audio.Media.TITLE + " ASC"
 
@@ -34,13 +37,15 @@ class MediaStoreTrackRepository @Inject constructor(
                 sortOrder
             )?.use { cursor ->
                 val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+                val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
                 while (cursor.moveToNext()) {
                     val id = cursor.getLong(idColumn)
+                    val path = cursor.getString(dataColumn)
                     val contentUri = ContentUris.withAppendedId(
                         MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                         id
                     )
-                    trackList.add(Track(contentUri))
+                    trackList.add(Track(contentUri, path))
                 }
             }
             trackList

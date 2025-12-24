@@ -2,4 +2,7 @@ package com.jacobarau.minstrel.data
 
 import android.net.Uri
 
-data class Track(val uri: Uri)
+data class Track(
+    val uri: Uri,
+    val path: String
+)

@@ -5,10 +5,14 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player as ExoPlayerListener
 import androidx.media3.exoplayer.ExoPlayer
 import com.jacobarau.minstrel.data.Track
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class ExoPlayerPlayer(context: Context) : Player {
+@Singleton
+class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) : Player {
     private val exoPlayer = ExoPlayer.Builder(context).build()
     private var tracks: List<Track> = emptyList()
 
@@ -23,6 +27,12 @@ class ExoPlayerPlayer(context: Context) : Player {
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 updatePlaybackState()
+            }
+
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == ExoPlayerListener.STATE_ENDED) {
+                    _playbackState.value = PlaybackState.Stopped
+                }
             }
         })
     }
@@ -57,5 +67,9 @@ class ExoPlayerPlayer(context: Context) : Player {
     override fun stop() {
         exoPlayer.stop()
         _playbackState.value = PlaybackState.Stopped
+    }
+
+    override fun release() {
+        exoPlayer.release()
     }
 }

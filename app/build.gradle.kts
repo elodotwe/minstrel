@@ -59,6 +59,7 @@ dependencies {
     kapt(libs.hilt.compiler)
 
     implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media.compat)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

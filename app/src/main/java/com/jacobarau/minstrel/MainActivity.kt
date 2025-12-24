@@ -7,11 +7,18 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
+import com.jacobarau.minstrel.player.PlaybackState
 import com.jacobarau.minstrel.ui.TrackViewModel
 import com.jacobarau.minstrel.ui.theme.MinstrelTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -38,7 +46,31 @@ class MainActivity : ComponentActivity() {
         setContent {
             MinstrelTheme {
                 val trackListState by viewModel.tracks.collectAsStateWithLifecycle()
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
+
+                Scaffold(modifier = Modifier.fillMaxSize(),
+                    bottomBar = {
+                        if (playbackState !is PlaybackState.Stopped) {
+                            val track = when (val state = playbackState) {
+                                is PlaybackState.Playing -> state.track
+                                is PlaybackState.Paused -> state.track
+                                else -> null
+                            }
+                            if (track != null) {
+                                BottomAppBar {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(onClick = { viewModel.onPlayPauseClicked() }) {
+                                            Icon(
+                                                imageVector = if (playbackState is PlaybackState.Playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                                contentDescription = "Play/Pause"
+                                            )
+                                        }
+                                        Text(text = track.filename)
+                                    }
+                                }
+                            }
+                        }
+                    }) { innerPadding ->
                     TrackList(
                         trackListState = trackListState,
                         onTrackSelected = { track -> viewModel.onTrackSelected(track) },

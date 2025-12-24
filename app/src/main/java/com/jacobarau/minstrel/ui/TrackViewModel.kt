@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.player.Player
+import com.jacobarau.minstrel.player.PlaybackState
 import com.jacobarau.minstrel.repository.TrackRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -25,10 +26,21 @@ class TrackViewModel @Inject constructor(
             initialValue = TrackListState.Loading
         )
 
+    val playbackState: StateFlow<PlaybackState> = player.playbackState
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = PlaybackState.Stopped
+        )
+
     fun onTrackSelected(track: Track) {
         val trackListState = tracks.value
         if (trackListState is TrackListState.Success) {
             player.play(trackListState.tracks, track)
         }
+    }
+
+    fun onPlayPauseClicked() {
+        player.togglePlayPause()
     }
 }

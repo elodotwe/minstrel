@@ -5,21 +5,25 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.ui.TrackViewModel
 import com.jacobarau.minstrel.ui.theme.MinstrelTheme
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -31,29 +35,12 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MinstrelTheme {
+                val trackListState by viewModel.tracks.collectAsStateWithLifecycle()
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
+                    TrackList(
+                        trackListState = trackListState,
                         modifier = Modifier.padding(innerPadding)
                     )
-                }
-            }
-        }
-
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.tracks.collect { state ->
-                    when (state) {
-                        TrackListState.Loading -> {
-                            println("Tracks: Loading")
-                        }
-                        is TrackListState.Success -> {
-                            println("Tracks: ${state.tracks}")
-                        }
-                        TrackListState.MissingPermissions -> {
-                            println("Tracks: Missing Permissions")
-                        }
-                    }
                 }
             }
         }
@@ -61,17 +48,45 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
+fun TrackList(trackListState: TrackListState, modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        when (trackListState) {
+            TrackListState.Loading -> {
+                CircularProgressIndicator()
+            }
+            TrackListState.MissingPermissions -> {
+                Text(text = "Missing permissions to read audio files.")
+            }
+            is TrackListState.Success -> {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(trackListState.tracks) { track ->
+                        Text(text = track.filename)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
+fun TrackListPreview() {
     MinstrelTheme {
-        Greeting("Android")
+        TrackList(
+            trackListState = TrackListState.Success(
+                tracks = listOf(
+                    Track(
+                        uri = android.net.Uri.EMPTY,
+                        filename = "song1.mp3",
+                        directory = "/storage/emulated/0/Music"
+                    ),
+                    Track(
+                        uri = android.net.Uri.EMPTY,
+                        filename = "song2.mp3",
+                        directory = "/storage/emulated/0/Music"
+                    )
+                )
+            )
+        )
     }
 }

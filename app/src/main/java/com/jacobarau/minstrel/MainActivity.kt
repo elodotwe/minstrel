@@ -15,6 +15,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.ui.TrackViewModel
 import com.jacobarau.minstrel.ui.theme.MinstrelTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -41,9 +42,18 @@ class MainActivity : ComponentActivity() {
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
-                viewModel.tracks.collect { tracks ->
-                    // For now, we'll just print the tracks to logcat
-                    println("Tracks: $tracks")
+                viewModel.tracks.collect { state ->
+                    when (state) {
+                        TrackListState.Loading -> {
+                            println("Tracks: Loading")
+                        }
+                        is TrackListState.Success -> {
+                            println("Tracks: ${state.tracks}")
+                        }
+                        TrackListState.MissingPermissions -> {
+                            println("Tracks: Missing Permissions")
+                        }
+                    }
                 }
             }
         }

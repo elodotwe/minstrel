@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     TrackList(
                         trackListState = trackListState,
+                        onTrackSelected = { track -> viewModel.onTrackSelected(track) },
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
@@ -49,19 +51,31 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun TrackList(trackListState: TrackListState, modifier: Modifier = Modifier) {
+fun TrackList(
+    trackListState: TrackListState,
+    onTrackSelected: (Track) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         when (trackListState) {
             TrackListState.Loading -> {
                 CircularProgressIndicator()
             }
+
             TrackListState.MissingPermissions -> {
                 Text(text = "Missing permissions to read audio files.")
             }
+
             is TrackListState.Success -> {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(trackListState.tracks) { track ->
-                        Text(text = track.filename, modifier = Modifier.padding(16.dp))
+                        Text(
+                            text = track.filename,
+                            modifier = Modifier
+                                .clickable { onTrackSelected(track) }
+                                .padding(vertical = 16.dp)
+                                .fillMaxSize()
+                        )
                     }
                 }
             }
@@ -87,7 +101,8 @@ fun TrackListPreview() {
                         directory = "/storage/emulated/0/Music"
                     )
                 )
-            )
+            ),
+            onTrackSelected = {}
         )
     }
 }

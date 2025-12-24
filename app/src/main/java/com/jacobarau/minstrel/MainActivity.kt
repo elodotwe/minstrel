@@ -1,5 +1,6 @@
 package com.jacobarau.minstrel
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
+import com.jacobarau.minstrel.media.MinstrelService
 import com.jacobarau.minstrel.player.PlaybackState
 import com.jacobarau.minstrel.ui.TrackViewModel
 import com.jacobarau.minstrel.ui.theme.MinstrelTheme
@@ -43,6 +45,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        startService(Intent(this, MinstrelService::class.java))
         setContent {
             MinstrelTheme {
                 val trackListState by viewModel.tracks.collectAsStateWithLifecycle()

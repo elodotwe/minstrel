@@ -1,12 +1,22 @@
 package com.jacobarau.minstrel.media
 
+import android.app.Notification
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import androidx.core.app.NotificationCompat
 import androidx.media.MediaBrowserServiceCompat
+import androidx.media.app.NotificationCompat.MediaStyle
+import com.jacobarau.minstrel.MainActivity
+import com.jacobarau.minstrel.NOTIFICATION_CHANNEL_ID
+import com.jacobarau.minstrel.R
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.player.Player
 import com.jacobarau.minstrel.player.PlaybackState
@@ -19,6 +29,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private const val MY_MEDIA_ROOT_ID = "media_root_id"
+private const val NOTIFICATION_ID = 1
 
 @AndroidEntryPoint
 class MinstrelService : MediaBrowserServiceCompat() {
@@ -92,9 +103,102 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 val queue = tracks.mapIndexed { index, track -> track.toQueueItem(index.toLong()) }
                 mediaSession.setQueue(queue)
                 mediaSession.setQueueTitle("Up Next")
+
+                updateNotification(state)
             }.collect {}
         }
     }
+
+    private fun updateNotification(state: PlaybackState) {
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        when (state) {
+            is PlaybackState.Playing -> {
+                val notification = createNotification(state)
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            is PlaybackState.Paused -> {
+                stopForeground(false)
+                val notification = createNotification(state)
+                notificationManager.notify(NOTIFICATION_ID, notification)
+            }
+            is PlaybackState.Stopped -> {
+                stopForeground(true)
+            }
+        }
+    }
+
+    private fun createNotification(state: PlaybackState): Notification {
+        val controller = mediaSession.controller
+        val mediaMetadata = controller.metadata
+        val description = mediaMetadata.description
+
+        val activityIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this,
+            0,
+            activityIntent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val playPauseAction = if (state is PlaybackState.Playing) {
+            NotificationCompat.Action(
+                R.drawable.ic_pause,
+                "Pause",
+                androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(
+                    this,
+                    PlaybackStateCompat.ACTION_PAUSE
+                )
+            )
+        } else {
+            NotificationCompat.Action(
+                R.drawable.ic_play_arrow,
+                "Play",
+                androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(
+                    this,
+                    PlaybackStateCompat.ACTION_PLAY
+                )
+            )
+        }
+
+        val builder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setContentTitle(description.title)
+            .setContentText(description.subtitle)
+            .setSubText(description.description)
+            .setLargeIcon(description.iconBitmap)
+            .setContentIntent(pendingIntent)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(
+                NotificationCompat.Action(
+                    R.drawable.ic_skip_previous,
+                    "Previous",
+                    androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(
+                        this,
+                        PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+                    )
+                )
+            )
+            .addAction(playPauseAction)
+            .addAction(
+                NotificationCompat.Action(
+                    R.drawable.ic_skip_next,
+                    "Next",
+                    androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(
+                        this,
+                        PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+                    )
+                )
+            )
+            .setStyle(
+                MediaStyle()
+                    .setMediaSession(mediaSession.sessionToken)
+                    .setShowActionsInCompactView(0, 1, 2)
+            )
+
+        return builder.build()
+    }
+
 
     override fun onDestroy() {
         super.onDestroy()

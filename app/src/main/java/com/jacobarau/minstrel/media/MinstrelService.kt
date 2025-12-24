@@ -1,29 +1,33 @@
 package com.jacobarau.minstrel.media
 
-import android.content.Context
+import android.os.Bundle
+import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import androidx.media.MediaBrowserServiceCompat
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.player.Player
 import com.jacobarau.minstrel.player.PlaybackState
-import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class MediaSessionManager @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val player: Player
-) {
-    private val mediaSession: MediaSessionCompat
-    private val job: Job
+private const val MY_MEDIA_ROOT_ID = "media_root_id"
+
+@AndroidEntryPoint
+class MinstrelService : MediaBrowserServiceCompat() {
+
+    @Inject
+    lateinit var player: Player
+
+    private lateinit var mediaSession: MediaSessionCompat
+    private lateinit var job: Job
 
     private val sessionCallback = object : MediaSessionCompat.Callback() {
         override fun onPlay() {
@@ -51,11 +55,14 @@ class MediaSessionManager @Inject constructor(
         }
     }
 
-    init {
-        mediaSession = MediaSessionCompat(context, "Minstrel").apply {
+    override fun onCreate() {
+        super.onCreate()
+
+        mediaSession = MediaSessionCompat(this, "Minstrel").apply {
             setCallback(sessionCallback)
             isActive = true
         }
+        sessionToken = mediaSession.sessionToken
 
         job = CoroutineScope(Dispatchers.Main).launch {
             combine(player.playbackState, player.currentTrack, player.tracks) { state, track, tracks ->
@@ -89,9 +96,31 @@ class MediaSessionManager @Inject constructor(
         }
     }
 
-    fun release() {
+    override fun onDestroy() {
+        super.onDestroy()
         job.cancel()
         mediaSession.release()
+    }
+
+    override fun onGetRoot(
+        clientPackageName: String,
+        clientUid: Int,
+        rootHints: Bundle?
+    ): BrowserRoot? {
+        // For now, allow anyone to connect.
+        return BrowserRoot(MY_MEDIA_ROOT_ID, null)
+    }
+
+    override fun onLoadChildren(
+        parentId: String,
+        result: Result<List<MediaBrowserCompat.MediaItem>>
+    ) {
+        //  Browsing not supported yet.
+        if (MY_MEDIA_ROOT_ID != parentId) {
+            result.sendResult(null)
+            return
+        }
+        result.sendResult(emptyList()) // Return empty list for now.
     }
 }
 

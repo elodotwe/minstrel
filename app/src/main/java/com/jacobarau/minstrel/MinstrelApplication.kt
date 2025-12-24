@@ -1,17 +1,14 @@
 package com.jacobarau.minstrel
 
 import android.app.Application
-import com.jacobarau.minstrel.media.MediaSessionManager
+import android.content.Intent
+import com.jacobarau.minstrel.media.MinstrelService
 import dagger.hilt.android.HiltAndroidApp
-import javax.inject.Inject
 
 @HiltAndroidApp
 class MinstrelApplication : Application() {
-    @Inject
-    lateinit var mediaSessionManager: MediaSessionManager
-
-    override fun onTerminate() {
-        mediaSessionManager.release()
-        super.onTerminate()
+    override fun onCreate() {
+        super.onCreate()
+        startService(Intent(this, MinstrelService::class.java))
     }
 }

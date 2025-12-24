@@ -1,9 +1,11 @@
 package com.jacobarau.minstrel.media
 
 import android.content.Context
+import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.player.Player
 import com.jacobarau.minstrel.player.PlaybackState
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -35,6 +37,14 @@ class MediaSessionManager @Inject constructor(
         override fun onStop() {
             player.stop()
         }
+
+        override fun onSkipToNext() {
+            player.skipToNext()
+        }
+
+        override fun onSkipToPrevious() {
+            player.skipToPrevious()
+        }
     }
 
     init {
@@ -50,7 +60,9 @@ class MediaSessionManager @Inject constructor(
                         PlaybackStateCompat.ACTION_PLAY or
                                 PlaybackStateCompat.ACTION_PAUSE or
                                 PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                                PlaybackStateCompat.ACTION_STOP
+                                PlaybackStateCompat.ACTION_STOP or
+                                PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
+                                PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
                     )
                     .setState(
                         state.toPlaybackStateCompat(),
@@ -63,6 +75,14 @@ class MediaSessionManager @Inject constructor(
                     .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track?.filename)
                 mediaSession.setMetadata(metadataBuilder.build())
             }.collect {}
+        }
+
+        CoroutineScope(Dispatchers.Main).launch {
+            player.tracks.collect { tracks ->
+                val queue = tracks.mapIndexed { index, track -> track.toQueueItem(index.toLong()) }
+                mediaSession.setQueue(queue)
+                mediaSession.setQueueTitle("Up Next")
+            }
         }
     }
 
@@ -78,4 +98,12 @@ private fun PlaybackState.toPlaybackStateCompat(): Int {
         is PlaybackState.Paused -> PlaybackStateCompat.STATE_PAUSED
         is PlaybackState.Stopped -> PlaybackStateCompat.STATE_STOPPED
     }
+}
+
+private fun Track.toQueueItem(id: Long): MediaSessionCompat.QueueItem {
+    val description = MediaDescriptionCompat.Builder()
+        .setMediaId(uri.toString())
+        .setTitle(filename)
+        .build()
+    return MediaSessionCompat.QueueItem(description, id)
 }

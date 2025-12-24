@@ -6,8 +6,11 @@ import kotlinx.coroutines.flow.StateFlow
 interface Player {
     val playbackState: StateFlow<PlaybackState>
     val currentTrack: StateFlow<Track?>
+    val tracks: StateFlow<List<Track>>
     fun play(tracks: List<Track>, track: Track)
     fun togglePlayPause()
+    fun skipToNext()
+    fun skipToPrevious()
     fun stop()
     fun release()
 }

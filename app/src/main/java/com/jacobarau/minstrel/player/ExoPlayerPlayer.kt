@@ -7,6 +7,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import com.jacobarau.minstrel.data.Track
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -14,7 +15,9 @@ import javax.inject.Singleton
 @Singleton
 class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) : Player {
     private val exoPlayer = ExoPlayer.Builder(context).build()
-    private var tracks: List<Track> = emptyList()
+
+    private val _tracks = MutableStateFlow<List<Track>>(emptyList())
+    override val tracks: StateFlow<List<Track>> = _tracks.asStateFlow()
 
     private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Stopped)
     override val playbackState = _playbackState.asStateFlow()
@@ -41,7 +44,7 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     }
 
     private fun updatePlaybackState() {
-        val currentTrack = tracks.getOrNull(exoPlayer.currentMediaItemIndex)
+        val currentTrack = _tracks.value.getOrNull(exoPlayer.currentMediaItemIndex)
         _currentTrack.value = currentTrack
 
         _playbackState.value = when {
@@ -52,7 +55,7 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     }
 
     override fun play(tracks: List<Track>, selectedTrack: Track) {
-        this.tracks = tracks
+        this._tracks.value = tracks
         val mediaItems = tracks.map { MediaItem.fromUri(it.uri) }
         val selectedIndex = tracks.indexOf(selectedTrack)
         exoPlayer.setMediaItems(mediaItems, selectedIndex, 0)
@@ -66,6 +69,14 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
         } else {
             exoPlayer.play()
         }
+    }
+
+    override fun skipToNext() {
+        exoPlayer.seekToNextMediaItem()
+    }
+
+    override fun skipToPrevious() {
+        exoPlayer.seekToPreviousMediaItem()
     }
 
     override fun stop() {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
+import java.io.File
 import javax.inject.Inject
 
 class MediaStoreTrackRepository @Inject constructor(
@@ -79,11 +80,12 @@ class MediaStoreTrackRepository @Inject constructor(
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val path = cursor.getString(dataColumn)
+                val file = File(path)
                 val contentUri = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                     id
                 )
-                trackList.add(Track(contentUri, path))
+                trackList.add(Track(contentUri, file.name, file.parent ?: ""))
             }
         }
         return trackList

@@ -58,7 +58,7 @@ class MediaSessionManager @Inject constructor(
         }
 
         job = CoroutineScope(Dispatchers.Main).launch {
-            player.playbackState.combine(player.currentTrack) { state, track ->
+            combine(player.playbackState, player.currentTrack, player.tracks) { state, track, tracks ->
                 val playbackStateBuilder = PlaybackStateCompat.Builder()
                     .setActions(
                         PlaybackStateCompat.ACTION_PLAY or
@@ -74,20 +74,18 @@ class MediaSessionManager @Inject constructor(
                         0,
                         1.0f
                     )
+                    .setActiveQueueItemId(tracks.indexOf(track).toLong())
                 mediaSession.setPlaybackState(playbackStateBuilder.build())
 
                 val metadataBuilder = MediaMetadataCompat.Builder()
                     .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track?.filename)
-                mediaSession.setMetadata(metadataBuilder.build())
-            }.collect {}
-        }
 
-        CoroutineScope(Dispatchers.Main).launch {
-            player.tracks.collect { tracks ->
+                mediaSession.setMetadata(metadataBuilder.build())
+
                 val queue = tracks.mapIndexed { index, track -> track.toQueueItem(index.toLong()) }
                 mediaSession.setQueue(queue)
                 mediaSession.setQueueTitle("Up Next")
-            }
+            }.collect {}
         }
     }
 

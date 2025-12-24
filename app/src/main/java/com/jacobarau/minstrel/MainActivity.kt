@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
@@ -60,7 +61,7 @@ fun TrackList(trackListState: TrackListState, modifier: Modifier = Modifier) {
             is TrackListState.Success -> {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(trackListState.tracks) { track ->
-                        Text(text = track.filename)
+                        Text(text = track.filename, modifier = Modifier.padding(16.dp))
                     }
                 }
             }

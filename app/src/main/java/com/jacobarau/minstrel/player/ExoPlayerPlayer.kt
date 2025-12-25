@@ -125,6 +125,10 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
         exoPlayer.seekTo(index, 0)
     }
 
+    override fun seekTo(position: Long) {
+        exoPlayer.seekTo(position)
+    }
+
     override fun stop() {
         exoPlayer.stop()
         _playbackState.value = PlaybackState.Stopped

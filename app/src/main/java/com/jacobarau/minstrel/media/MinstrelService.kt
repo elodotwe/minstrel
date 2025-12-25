@@ -153,6 +153,10 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 }
             }
         }
+
+        override fun onSeekTo(pos: Long) {
+            player.seekTo(pos)
+        }
     }
 
     override fun onCreate() {
@@ -212,6 +216,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
                     PlaybackStateCompat.ACTION_PAUSE or
                     PlaybackStateCompat.ACTION_PLAY_PAUSE or
                     PlaybackStateCompat.ACTION_STOP or
+                    PlaybackStateCompat.ACTION_SEEK_TO or
                     PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM
             if (trackIndex > 0) {
                 actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS

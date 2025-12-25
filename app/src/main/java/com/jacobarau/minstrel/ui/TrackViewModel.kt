@@ -63,6 +63,10 @@ class TrackViewModel @Inject constructor(
         player.togglePlayPause()
     }
 
+    fun onSeek(position: Long) {
+        player.seekTo(position)
+    }
+
     fun onSearchQueryChanged(query: String) {
         searchQuery.value = query
     }

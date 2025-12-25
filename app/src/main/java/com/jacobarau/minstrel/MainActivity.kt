@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -28,15 +27,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,14 +44,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jacobarau.minstrel.data.Track
@@ -149,7 +142,13 @@ class MainActivity : ComponentActivity() {
                             if (track != null) {
                                 BottomAppBar {
                                     Column(modifier = Modifier.fillMaxWidth()) {
-                                        LinearProgressIndicator(progress = { trackProgress.toFloat() / trackDuration.toFloat() }, modifier = Modifier.fillMaxWidth())
+                                        val duration = trackDuration.toFloat().coerceAtLeast(0f)
+                                        Slider(
+                                            value = trackProgress.toFloat().coerceIn(0f, duration),
+                                            onValueChange = { viewModel.onSeek(it.toLong()) },
+                                            valueRange = 0f..duration,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             IconButton(onClick = { viewModel.onPlayPauseClicked() }) {
                                                 Icon(
@@ -185,6 +184,9 @@ class MainActivity : ComponentActivity() {
 }
 
 fun formatTime(millis: Long): String {
+    if (millis < 0L) {
+        return "--:--"
+    }
     val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
     val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
     return String.format("%02d:%02d", minutes, seconds)

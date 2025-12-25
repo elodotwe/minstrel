@@ -15,6 +15,7 @@ interface Player {
     fun skipToNext()
     fun skipToPrevious()
     fun skipToTrack(index: Int)
+    fun seekTo(position: Long)
     fun stop()
     fun release()
 }

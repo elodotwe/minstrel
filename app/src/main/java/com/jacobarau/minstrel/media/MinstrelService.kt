@@ -47,6 +47,10 @@ class MinstrelService : MediaBrowserServiceCompat() {
         override fun onPlay() {
             Log.d(tag, "onPlay")
             player.togglePlayPause()
+            // MediaButtonReceiver binds us when handling a Bluetooth button press, but we are only
+            // bound at that point. We need to become started too if we're to keep a notification
+            // or a media session.
+            startService(Intent(applicationContext, MinstrelService::class.java))
         }
 
         override fun onPause() {

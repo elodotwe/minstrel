@@ -63,7 +63,10 @@ class MediaStoreTrackRepository @Inject constructor(
         val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
         val projection = arrayOf(
             MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.DATA
+            MediaStore.Audio.Media.DATA,
+            MediaStore.Audio.Media.TITLE,
+            MediaStore.Audio.Media.ALBUM,
+            MediaStore.Audio.Media.ARTIST
         )
 
         val selectionClauses = mutableListOf<String>()
@@ -88,15 +91,21 @@ class MediaStoreTrackRepository @Inject constructor(
         )?.use { cursor ->
             val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
             val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+            val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
+            val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val path = cursor.getString(dataColumn)
+                val title = cursor.getString(titleColumn)
+                val album = cursor.getString(albumColumn)
+                val artist = cursor.getString(artistColumn)
                 val file = File(path)
                 val contentUri = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                     id
                 )
-                trackList.add(Track(contentUri, file.name, file.parent ?: ""))
+                trackList.add(Track(contentUri, title, artist, album, file.name, file.parent ?: ""))
             }
         }
         return trackList

@@ -245,7 +245,7 @@ fun TrackList(
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             }
                             Text(
-                                text = track.filename,
+                                text = track.title ?: track.filename,
                                 color = textColor
                             )
                             Text(

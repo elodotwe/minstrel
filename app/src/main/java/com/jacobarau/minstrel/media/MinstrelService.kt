@@ -22,8 +22,10 @@ import com.jacobarau.minstrel.MainActivity
 import com.jacobarau.minstrel.NOTIFICATION_CHANNEL_ID
 import com.jacobarau.minstrel.R
 import com.jacobarau.minstrel.data.Track
+import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.player.Player
 import com.jacobarau.minstrel.player.PlaybackState
+import com.jacobarau.minstrel.repository.TrackRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,8 +33,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private const val MY_MEDIA_ROOT_ID = "media_root_id"
@@ -45,6 +49,9 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
     @Inject
     lateinit var player: Player
+
+    @Inject
+    lateinit var trackRepository: TrackRepository
 
     private lateinit var mediaSession: MediaSessionCompat
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -97,6 +104,23 @@ class MinstrelService : MediaBrowserServiceCompat() {
             Log.d(tag, "onSkipToQueueItem $id")
             player.skipToTrack(id.toInt())
         }
+
+        override fun onPlayFromMediaId(mediaId: String, extras: Bundle?) {
+            Log.d(tag, "onPlayFromMediaId $mediaId")
+            if (!isStarted) {
+                // If invoked from Android Auto we may only be bound. Ensure we're started.
+                startForegroundService(Intent(applicationContext, MinstrelService::class.java))
+            }
+            serviceScope.launch {
+                val trackListState = trackRepository.getTracks().first { it is TrackListState.Success }
+                if (trackListState is TrackListState.Success) {
+                    val tracks = trackListState.tracks
+                    var trackIndex = tracks.indexOfFirst { it.uri.toString() == mediaId }
+                    if (trackIndex == -1) trackIndex = 0;
+                    player.play(tracks, tracks[trackIndex])
+                }
+            }
+        }
     }
 
     override fun onCreate() {
@@ -116,8 +140,10 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 Log.d(tag, "Tracks changed. Updating queue.")
                 val queue =
                     tracks.mapIndexed { index, track -> track.toQueueItem(index.toLong()) }
+                        .take(100)
                 mediaSession.setQueue(queue)
                 mediaSession.setQueueTitle("Up Next")
+                notifyChildrenChanged(MY_MEDIA_ROOT_ID)
             }
             .launchIn(serviceScope)
 
@@ -128,7 +154,9 @@ class MinstrelService : MediaBrowserServiceCompat() {
             .onEach { (track, duration) ->
                 Log.d(tag, "Track or duration changed. Updating metadata.")
                 val metadataBuilder = MediaMetadataCompat.Builder()
-                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track?.filename)
+                    .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track?.title)
+                    .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, track?.artist)
+                    .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, track?.album)
                     .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration)
                 mediaSession.setMetadata(metadataBuilder.build())
             }
@@ -295,12 +323,27 @@ class MinstrelService : MediaBrowserServiceCompat() {
         parentId: String,
         result: Result<List<MediaBrowserCompat.MediaItem>>
     ) {
-        //  Browsing not supported yet.
         if (MY_MEDIA_ROOT_ID != parentId) {
             result.sendResult(null)
             return
         }
-        result.sendResult(emptyList()) // Return empty list for now.
+
+        result.detach()
+
+        serviceScope.launch {
+            val trackListState = trackRepository.getTracks().first { it is TrackListState.Success }
+            if (trackListState is TrackListState.Success) {
+                val mediaItems = trackListState.tracks.map { track ->
+                    val description = MediaDescriptionCompat.Builder()
+                        .setMediaId(track.uri.toString())
+                        .setTitle(track.title)
+                        .setSubtitle(track.artist)
+                        .build()
+                    MediaBrowserCompat.MediaItem(description, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE)
+                }.take(100)
+                result.sendResult(mediaItems)
+            }
+        }
     }
 }
 
@@ -315,7 +358,8 @@ private fun PlaybackState.toPlaybackStateCompat(): Int {
 private fun Track.toQueueItem(id: Long): MediaSessionCompat.QueueItem {
     val description = MediaDescriptionCompat.Builder()
         .setMediaId(uri.toString())
-        .setTitle(filename)
+        .setTitle(title)
+        .setSubtitle(artist)
         .build()
     return MediaSessionCompat.QueueItem(description, id)
 }

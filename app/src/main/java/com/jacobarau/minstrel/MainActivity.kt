@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,12 +25,14 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,7 +44,12 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jacobarau.minstrel.data.Track
@@ -181,13 +189,24 @@ fun TrackList(
             is TrackListState.Success -> {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(trackListState.tracks) { track ->
-                        Text(
-                            text = track.filename,
+                        Column(
                             modifier = Modifier
                                 .clickable { onTrackSelected(track) }
-                                .padding(vertical = 16.dp)
-                                .fillMaxSize()
-                        )
+                                .padding(vertical = 8.dp, horizontal = 16.dp)
+                                .fillMaxWidth()
+                        ) {
+                            Text(
+                                text = track.filename
+                            )
+                            Text(
+                                text = track.directory,
+                                maxLines = 1,
+                                overflow = TextOverflow.StartEllipsis,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -205,7 +224,7 @@ fun TrackListPreview() {
                     Track(
                         uri = android.net.Uri.EMPTY,
                         filename = "song1.mp3",
-                        directory = "/storage/emulated/0/Music"
+                        directory = "/storage/emulated/0/Music/A long directory name that will surely be truncated"
                     ),
                     Track(
                         uri = android.net.Uri.EMPTY,

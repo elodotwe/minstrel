@@ -1,6 +1,8 @@
 package com.jacobarau.minstrel.player
 
 import android.content.Context
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player as ExoPlayerListener
 import androidx.media3.exoplayer.ExoPlayer
@@ -14,7 +16,16 @@ import javax.inject.Singleton
 
 @Singleton
 class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) : Player {
-    private val exoPlayer = ExoPlayer.Builder(context).build()
+    private val exoPlayer = ExoPlayer.Builder(context)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(C.USAGE_MEDIA)
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .build(),
+            true
+        )
+        .setWakeMode(C.WAKE_MODE_LOCAL)
+        .build()
 
     private val _tracks = MutableStateFlow<List<Track>>(emptyList())
     override val tracks: StateFlow<List<Track>> = _tracks.asStateFlow()

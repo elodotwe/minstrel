@@ -116,7 +116,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 if (trackListState is TrackListState.Success) {
                     val tracks = trackListState.tracks
                     var trackIndex = tracks.indexOfFirst { it.uri.toString() == mediaId }
-                    if (trackIndex == -1) trackIndex = 0;
+                    if (trackIndex == -1) trackIndex = 0
                     player.play(tracks, tracks[trackIndex])
                 }
             }
@@ -244,7 +244,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
     private fun updateNotification(state: PlaybackState) {
         Log.d(tag, "updateNotification $state")
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
         when (state) {
             is PlaybackState.Playing -> {
@@ -252,12 +252,12 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 startForeground(NOTIFICATION_ID, notification)
             }
             is PlaybackState.Paused -> {
-                stopForeground(false)
+                stopForeground(STOP_FOREGROUND_DETACH)
                 val notification = createNotification(state)
                 notificationManager.notify(NOTIFICATION_ID, notification)
             }
             is PlaybackState.Stopped -> {
-                stopForeground(true)
+                stopForeground(STOP_FOREGROUND_REMOVE)
             }
         }
     }
@@ -346,7 +346,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
         clientPackageName: String,
         clientUid: Int,
         rootHints: Bundle?
-    ): BrowserRoot? {
+    ): BrowserRoot {
         // For now, allow anyone to connect.
         return BrowserRoot(MY_MEDIA_ROOT_ID, null)
     }

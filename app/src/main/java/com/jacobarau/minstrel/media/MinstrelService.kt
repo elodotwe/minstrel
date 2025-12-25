@@ -11,6 +11,7 @@ import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.app.NotificationCompat.MediaStyle
@@ -34,6 +35,8 @@ private const val NOTIFICATION_ID = 1
 @AndroidEntryPoint
 class MinstrelService : MediaBrowserServiceCompat() {
 
+    private val tag = this.javaClass.simpleName
+
     @Inject
     lateinit var player: Player
 
@@ -42,32 +45,39 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
     private val sessionCallback = object : MediaSessionCompat.Callback() {
         override fun onPlay() {
+            Log.d(tag, "onPlay")
             player.togglePlayPause()
         }
 
         override fun onPause() {
+            Log.d(tag, "onPause")
             player.togglePlayPause()
         }
 
         override fun onStop() {
+            Log.d(tag, "onStop")
             player.stop()
         }
 
         override fun onSkipToNext() {
+            Log.d(tag, "onSkipToNext")
             player.skipToNext()
         }
 
         override fun onSkipToPrevious() {
+            Log.d(tag, "onSkipToPrevious")
             player.skipToPrevious()
         }
 
         override fun onSkipToQueueItem(id: Long) {
+            Log.d(tag, "onSkipToQueueItem $id")
             player.skipToTrack(id.toInt())
         }
     }
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(tag, "onCreate")
 
         mediaSession = MediaSessionCompat(this, "Minstrel").apply {
             setCallback(sessionCallback)
@@ -77,6 +87,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
         job = CoroutineScope(Dispatchers.Main).launch {
             combine(player.playbackState, player.currentTrack, player.tracks) { state, track, tracks ->
+                Log.d(tag, "combine $state $track sizeof(tracks)=${tracks.size}")
                 val playbackStateBuilder = PlaybackStateCompat.Builder()
                     .setActions(
                         PlaybackStateCompat.ACTION_PLAY or
@@ -110,6 +121,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
     }
 
     private fun updateNotification(state: PlaybackState) {
+        Log.d(tag, "updateNotification $state")
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         when (state) {
@@ -201,6 +213,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
 
     override fun onDestroy() {
+        Log.d(tag, "onDestroy")
         super.onDestroy()
         job.cancel()
         mediaSession.release()

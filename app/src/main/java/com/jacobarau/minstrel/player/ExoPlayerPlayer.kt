@@ -8,9 +8,15 @@ import androidx.media3.common.Player as ExoPlayerListener
 import androidx.media3.exoplayer.ExoPlayer
 import com.jacobarau.minstrel.data.Track
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,6 +33,8 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
         .setWakeMode(C.WAKE_MODE_LOCAL)
         .build()
 
+    private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
     private val _tracks = MutableStateFlow<List<Track>>(emptyList())
     override val tracks: StateFlow<List<Track>> = _tracks.asStateFlow()
 
@@ -36,6 +44,12 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     private val _currentTrack = MutableStateFlow<Track?>(null)
     override val currentTrack = _currentTrack.asStateFlow()
 
+    private val _trackProgressMillis = MutableStateFlow(0L)
+    override val trackProgressMillis: StateFlow<Long> = _trackProgressMillis.asStateFlow()
+
+    private val _trackDurationMillis = MutableStateFlow(0L)
+    override val trackDurationMillis: StateFlow<Long> = _trackDurationMillis.asStateFlow()
+
     init {
         exoPlayer.addListener(object : ExoPlayerListener.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -44,14 +58,27 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 updatePlaybackState()
+                _trackDurationMillis.value = exoPlayer.duration
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == ExoPlayer.STATE_READY) {
+                    _trackDurationMillis.value = exoPlayer.duration
+                }
                 if (playbackState == ExoPlayerListener.STATE_ENDED) {
                     _playbackState.value = PlaybackState.Stopped
                 }
             }
         })
+
+        playerScope.launch {
+            while (true) {
+                if (exoPlayer.isPlaying) {
+                    _trackProgressMillis.value = exoPlayer.currentPosition
+                }
+                delay(1000)
+            }
+        }
     }
 
     private fun updatePlaybackState() {
@@ -104,6 +131,7 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     }
 
     override fun release() {
+        playerScope.cancel()
         exoPlayer.release()
     }
 }

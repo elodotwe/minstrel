@@ -28,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -62,6 +63,7 @@ import com.jacobarau.minstrel.player.PlaybackState
 import com.jacobarau.minstrel.ui.TrackViewModel
 import com.jacobarau.minstrel.ui.theme.MinstrelTheme
 import dagger.hilt.android.AndroidEntryPoint
+import java.util.concurrent.TimeUnit
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -77,6 +79,8 @@ class MainActivity : ComponentActivity() {
             MinstrelTheme {
                 val trackListState by viewModel.tracks.collectAsStateWithLifecycle()
                 val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
+                val trackProgress by viewModel.trackProgressMillis.collectAsStateWithLifecycle()
+                val trackDuration by viewModel.trackDurationMillis.collectAsStateWithLifecycle()
                 var searchQuery by remember { mutableStateOf("") }
                 var searchExpanded by remember { mutableStateOf(false) }
                 val focusRequester = remember { FocusRequester() }
@@ -144,14 +148,20 @@ class MainActivity : ComponentActivity() {
                             }
                             if (track != null) {
                                 BottomAppBar {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IconButton(onClick = { viewModel.onPlayPauseClicked() }) {
-                                            Icon(
-                                                imageVector = if (playbackState is PlaybackState.Playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                                contentDescription = "Play/Pause"
-                                            )
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        LinearProgressIndicator(progress = { trackProgress.toFloat() / trackDuration.toFloat() }, modifier = Modifier.fillMaxWidth())
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(onClick = { viewModel.onPlayPauseClicked() }) {
+                                                Icon(
+                                                    imageVector = if (playbackState is PlaybackState.Playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                                    contentDescription = "Play/Pause"
+                                                )
+                                            }
+                                            Text(text = track.filename)
+                                            Text(text = formatTime(trackProgress), modifier = Modifier.padding(start = 8.dp))
+                                            Text(text = "/")
+                                            Text(text = formatTime(trackDuration))
                                         }
-                                        Text(text = track.filename)
                                     }
                                 }
                             }
@@ -172,6 +182,12 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+}
+
+fun formatTime(millis: Long): String {
+    val minutes = TimeUnit.MILLISECONDS.toMinutes(millis)
+    val seconds = TimeUnit.MILLISECONDS.toSeconds(millis) % 60
+    return String.format("%02d:%02d", minutes, seconds)
 }
 
 @Composable

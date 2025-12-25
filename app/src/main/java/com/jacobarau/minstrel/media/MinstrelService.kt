@@ -111,7 +111,9 @@ class MinstrelService : MediaBrowserServiceCompat() {
         registerReceiver(becomingNoisyReceiver, intentFilter)
 
         job = CoroutineScope(Dispatchers.Main).launch {
-            combine(player.playbackState, player.currentTrack, player.tracks) { state, track, tracks ->
+            combine(
+                player.playbackState, player.currentTrack, player.tracks, player.trackProgressMillis, player.trackDurationMillis
+            ) { state, track, tracks, progress, duration ->
                 Log.d(tag, "combine $state $track sizeof(tracks)=${tracks.size}")
                 val playbackStateBuilder = PlaybackStateCompat.Builder()
                     .setActions(
@@ -125,7 +127,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
                     )
                     .setState(
                         state.toPlaybackStateCompat(),
-                        0,
+                        progress,
                         1.0f
                     )
                     .setActiveQueueItemId(tracks.indexOf(track).toLong())
@@ -133,6 +135,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
                 val metadataBuilder = MediaMetadataCompat.Builder()
                     .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track?.filename)
+                    .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration)
 
                 mediaSession.setMetadata(metadataBuilder.build())
 

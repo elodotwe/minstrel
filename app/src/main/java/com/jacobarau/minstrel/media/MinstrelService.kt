@@ -13,6 +13,7 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.lifecycle.compose.dropUnlessStarted
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import com.jacobarau.minstrel.MainActivity
@@ -25,6 +26,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -43,14 +45,18 @@ class MinstrelService : MediaBrowserServiceCompat() {
     private lateinit var mediaSession: MediaSessionCompat
     private lateinit var job: Job
 
+    private var isStarted = false
+
     private val sessionCallback = object : MediaSessionCompat.Callback() {
         override fun onPlay() {
             Log.d(tag, "onPlay")
             player.togglePlayPause()
-            // MediaButtonReceiver binds us when handling a Bluetooth button press, but we are only
-            // bound at that point. We need to become started too if we're to keep a notification
-            // or a media session.
-            startService(Intent(applicationContext, MinstrelService::class.java))
+            if (!isStarted) {
+                // MediaButtonReceiver binds us when handling a Bluetooth button press, but we are only
+                // bound at that point. We need to become started too if we're to keep a notification
+                // or a media session.
+                startForegroundService(Intent(applicationContext, MinstrelService::class.java))
+            }
         }
 
         override fun onPause() {
@@ -122,6 +128,12 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 updateNotification(state)
             }.collect {}
         }
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(tag, "onStartCommand $intent $flags $startId")
+        isStarted = true
+        return super.onStartCommand(intent, flags, startId)
     }
 
     private fun updateNotification(state: PlaybackState) {
@@ -218,6 +230,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
     override fun onDestroy() {
         Log.d(tag, "onDestroy")
+        isStarted = false
         super.onDestroy()
         job.cancel()
         mediaSession.release()

@@ -3,8 +3,11 @@ package com.jacobarau.minstrel.media
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.media.AudioManager
 import android.os.Bundle
 import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaDescriptionCompat
@@ -46,6 +49,16 @@ class MinstrelService : MediaBrowserServiceCompat() {
     private lateinit var job: Job
 
     private var isStarted = false
+
+    private val becomingNoisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                player.pause()
+            }
+        }
+    }
+    private val intentFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+
 
     private val sessionCallback = object : MediaSessionCompat.Callback() {
         override fun onPlay() {
@@ -94,6 +107,8 @@ class MinstrelService : MediaBrowserServiceCompat() {
             isActive = true
         }
         sessionToken = mediaSession.sessionToken
+
+        registerReceiver(becomingNoisyReceiver, intentFilter)
 
         job = CoroutineScope(Dispatchers.Main).launch {
             combine(player.playbackState, player.currentTrack, player.tracks) { state, track, tracks ->

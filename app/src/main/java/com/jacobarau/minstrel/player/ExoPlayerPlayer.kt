@@ -82,6 +82,10 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
         }
     }
 
+    override fun pause() {
+        exoPlayer.pause()
+    }
+
     override fun skipToNext() {
         exoPlayer.seekToNextMediaItem()
     }

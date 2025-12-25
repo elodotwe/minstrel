@@ -115,22 +115,27 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 player.playbackState, player.currentTrack, player.tracks, player.trackProgressMillis, player.trackDurationMillis
             ) { state, track, tracks, progress, duration ->
                 Log.d(tag, "combine $state $track sizeof(tracks)=${tracks.size}")
+                val trackIndex = tracks.indexOf(track)
+                var actions = PlaybackStateCompat.ACTION_PLAY or
+                        PlaybackStateCompat.ACTION_PAUSE or
+                        PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                        PlaybackStateCompat.ACTION_STOP or
+                        PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM
+                if (trackIndex > 0) {
+                    actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+                }
+                if (trackIndex < tracks.size - 1) {
+                    actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+                }
+
                 val playbackStateBuilder = PlaybackStateCompat.Builder()
-                    .setActions(
-                        PlaybackStateCompat.ACTION_PLAY or
-                                PlaybackStateCompat.ACTION_PAUSE or
-                                PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                                PlaybackStateCompat.ACTION_STOP or
-                                PlaybackStateCompat.ACTION_SKIP_TO_NEXT or
-                                PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS or
-                                PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM
-                    )
+                    .setActions(actions)
                     .setState(
                         state.toPlaybackStateCompat(),
                         progress,
                         1.0f
                     )
-                    .setActiveQueueItemId(tracks.indexOf(track).toLong())
+                    .setActiveQueueItemId(trackIndex.toLong())
                 mediaSession.setPlaybackState(playbackStateBuilder.build())
 
                 val metadataBuilder = MediaMetadataCompat.Builder()

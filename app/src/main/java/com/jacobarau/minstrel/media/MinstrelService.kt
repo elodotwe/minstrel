@@ -141,7 +141,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
                             it.title?.contains(query, ignoreCase = true) == true ||
                                     it.artist?.contains(query, ignoreCase = true) == true ||
                                     it.album?.contains(query, ignoreCase = true) == true ||
-                                    it.filename.contains(query, ignoreCase = true) == true
+                                    it.filename.contains(query, ignoreCase = true)
                         }
                     }
 

@@ -4,5 +4,5 @@ import com.jacobarau.minstrel.data.TrackListState
 import kotlinx.coroutines.flow.Flow
 
 interface TrackRepository {
-    fun getTracks(): Flow<TrackListState>
+    fun getTracks(filter: String? = null): Flow<TrackListState>
 }

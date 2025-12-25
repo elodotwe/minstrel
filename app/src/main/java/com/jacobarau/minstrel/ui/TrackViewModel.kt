@@ -8,8 +8,10 @@ import com.jacobarau.minstrel.player.Player
 import com.jacobarau.minstrel.player.PlaybackState
 import com.jacobarau.minstrel.repository.TrackRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -19,12 +21,15 @@ class TrackViewModel @Inject constructor(
     private val player: Player
 ) : ViewModel() {
 
-    val tracks: StateFlow<TrackListState> = trackRepository.getTracks()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = TrackListState.Loading
-        )
+    private val searchQuery = MutableStateFlow<String?>(null)
+
+    val tracks: StateFlow<TrackListState> = searchQuery.flatMapLatest { query ->
+        trackRepository.getTracks(query)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = TrackListState.Loading
+    )
 
     val playbackState: StateFlow<PlaybackState> = player.playbackState
         .stateIn(
@@ -33,8 +38,7 @@ class TrackViewModel @Inject constructor(
             initialValue = PlaybackState.Stopped
         )
 
-    fun onTrackSelected(track: Track) {
-        val trackListState = tracks.value
+    fun onTrackSelected(track: Track, trackListState: TrackListState) {
         if (trackListState is TrackListState.Success) {
             player.play(trackListState.tracks, track)
         }
@@ -42,5 +46,9 @@ class TrackViewModel @Inject constructor(
 
     fun onPlayPauseClicked() {
         player.togglePlayPause()
+    }
+
+    fun onSearchQueryChanged(query: String) {
+        searchQuery.value = query
     }
 }

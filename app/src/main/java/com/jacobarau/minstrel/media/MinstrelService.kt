@@ -16,7 +16,6 @@ import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.compose.dropUnlessStarted
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.app.NotificationCompat.MediaStyle
 import com.jacobarau.minstrel.MainActivity
@@ -28,10 +27,12 @@ import com.jacobarau.minstrel.player.PlaybackState
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
 
 private const val MY_MEDIA_ROOT_ID = "media_root_id"
@@ -46,7 +47,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
     lateinit var player: Player
 
     private lateinit var mediaSession: MediaSessionCompat
-    private lateinit var job: Job
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private var isStarted = false
 
@@ -110,47 +111,69 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
         registerReceiver(becomingNoisyReceiver, intentFilter)
 
-        job = CoroutineScope(Dispatchers.Main).launch {
-            combine(
-                player.playbackState, player.currentTrack, player.tracks, player.trackProgressMillis, player.trackDurationMillis
-            ) { state, track, tracks, progress, duration ->
-                Log.d(tag, "combine $state $track sizeof(tracks)=${tracks.size}")
-                val trackIndex = tracks.indexOf(track)
-                var actions = PlaybackStateCompat.ACTION_PLAY or
-                        PlaybackStateCompat.ACTION_PAUSE or
-                        PlaybackStateCompat.ACTION_PLAY_PAUSE or
-                        PlaybackStateCompat.ACTION_STOP or
-                        PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM
-                if (trackIndex > 0) {
-                    actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
-                }
-                if (trackIndex < tracks.size - 1) {
-                    actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
-                }
+        player.tracks
+            .onEach { tracks ->
+                Log.d(tag, "Tracks changed. Updating queue.")
+                val queue =
+                    tracks.mapIndexed { index, track -> track.toQueueItem(index.toLong()) }
+                mediaSession.setQueue(queue)
+                mediaSession.setQueueTitle("Up Next")
+            }
+            .launchIn(serviceScope)
 
-                val playbackStateBuilder = PlaybackStateCompat.Builder()
-                    .setActions(actions)
-                    .setState(
-                        state.toPlaybackStateCompat(),
-                        progress,
-                        1.0f
-                    )
-                    .setActiveQueueItemId(trackIndex.toLong())
-                mediaSession.setPlaybackState(playbackStateBuilder.build())
-
+        combine(player.currentTrack, player.trackDurationMillis) { track, duration ->
+            Pair(track, duration)
+        }
+            .distinctUntilChanged()
+            .onEach { (track, duration) ->
+                Log.d(tag, "Track or duration changed. Updating metadata.")
                 val metadataBuilder = MediaMetadataCompat.Builder()
                     .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track?.filename)
                     .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration)
-
                 mediaSession.setMetadata(metadataBuilder.build())
+            }
+            .launchIn(serviceScope)
 
-                val queue = tracks.mapIndexed { index, track -> track.toQueueItem(index.toLong()) }
-                mediaSession.setQueue(queue)
-                mediaSession.setQueueTitle("Up Next")
-
+        player.playbackState
+            .onEach { state ->
+                Log.d(tag, "Playback state changed. Updating notification.")
                 updateNotification(state)
-            }.collect {}
+            }
+            .launchIn(serviceScope)
+
+        combine(
+            player.playbackState,
+            player.currentTrack,
+            player.tracks,
+            player.trackProgressMillis
+        ) { state, track, tracks, progress ->
+            val trackIndex = tracks.indexOf(track)
+            var actions = PlaybackStateCompat.ACTION_PLAY or
+                    PlaybackStateCompat.ACTION_PAUSE or
+                    PlaybackStateCompat.ACTION_PLAY_PAUSE or
+                    PlaybackStateCompat.ACTION_STOP or
+                    PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM
+            if (trackIndex > 0) {
+                actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
+            }
+            if (trackIndex < tracks.size - 1) {
+                actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
+            }
+
+            PlaybackStateCompat.Builder()
+                .setActions(actions)
+                .setState(
+                    state.toPlaybackStateCompat(),
+                    progress,
+                    1.0f
+                )
+                .setActiveQueueItemId(trackIndex.toLong())
+                .build()
         }
+            .onEach { playbackState ->
+                mediaSession.setPlaybackState(playbackState)
+            }
+            .launchIn(serviceScope)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -255,7 +278,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
         Log.d(tag, "onDestroy")
         isStarted = false
         super.onDestroy()
-        job.cancel()
+        serviceScope.cancel()
         mediaSession.release()
     }
 

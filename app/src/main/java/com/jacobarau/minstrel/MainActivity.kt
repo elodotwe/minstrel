@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
@@ -157,6 +159,7 @@ class MainActivity : ComponentActivity() {
                     }) { innerPadding ->
                     TrackList(
                         trackListState = trackListState,
+                        playbackState = playbackState,
                         onTrackSelected = { track ->
                             viewModel.onTrackSelected(
                                 track,
@@ -174,6 +177,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TrackList(
     trackListState: TrackListState,
+    playbackState: PlaybackState,
     onTrackSelected: (Track) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -188,25 +192,52 @@ fun TrackList(
             }
 
             is TrackListState.Success -> {
-                LazyColumn(modifier = Modifier
-                    .fillMaxSize()
-                    .imePadding()) {
-                    items(trackListState.tracks) { track ->
+                val currentTrack = when (playbackState) {
+                    is PlaybackState.Playing -> playbackState.track
+                    is PlaybackState.Paused -> playbackState.track
+                    else -> null
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .imePadding()
+                ) {
+                    itemsIndexed(trackListState.tracks) { _, track ->
+                        val isPlaying = track == currentTrack
+                        val backgroundColor = if (isPlaying) {
+                            MaterialTheme.colorScheme.primaryContainer
+                        } else {
+                            Color.Transparent
+                        }
+
                         Column(
                             modifier = Modifier
+                                .background(backgroundColor)
                                 .clickable { onTrackSelected(track) }
                                 .padding(vertical = 8.dp, horizontal = 16.dp)
                                 .fillMaxWidth()
                         ) {
+                            val textColor = if (isPlaying) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                            val secondaryTextColor = if (isPlaying) {
+                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                             Text(
-                                text = track.filename
+                                text = track.filename,
+                                color = textColor
                             )
                             Text(
                                 text = track.directory,
                                 maxLines = 1,
                                 overflow = TextOverflow.StartEllipsis,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = secondaryTextColor,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -236,6 +267,7 @@ fun TrackListPreview() {
                     )
                 )
             ),
+            playbackState = PlaybackState.Stopped,
             onTrackSelected = {}
         )
     }

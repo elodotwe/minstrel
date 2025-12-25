@@ -121,6 +121,38 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 }
             }
         }
+
+        override fun onPlayFromSearch(query: String?, extras: Bundle?) {
+            Log.d(tag, "onPlayFromSearch query: $query")
+            if (!isStarted) {
+                startForegroundService(Intent(applicationContext, MinstrelService::class.java))
+            }
+
+            serviceScope.launch {
+                val trackListState = trackRepository.getTracks().first { it is TrackListState.Success }
+                if (trackListState is TrackListState.Success) {
+                    val allTracks = trackListState.tracks
+                    if (allTracks.isEmpty()) return@launch
+
+                    val trackToPlay = if (query.isNullOrBlank()) {
+                        allTracks.first()
+                    } else {
+                        allTracks.firstOrNull {
+                            it.title?.contains(query, ignoreCase = true) == true ||
+                                    it.artist?.contains(query, ignoreCase = true) == true ||
+                                    it.album?.contains(query, ignoreCase = true) == true ||
+                                    it.filename.contains(query, ignoreCase = true) == true
+                        }
+                    }
+
+                    if (trackToPlay != null) {
+                        player.play(allTracks, trackToPlay)
+                    } else {
+                        Log.w(tag, "No results for query: $query")
+                    }
+                }
+            }
+        }
     }
 
     override fun onCreate() {

@@ -92,10 +92,10 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
         }
     }
 
-    override fun play(tracks: List<Track>, selectedTrack: Track) {
+    override fun play(tracks: List<Track>, track: Track) {
         this._tracks.value = tracks
         val mediaItems = tracks.map { MediaItem.fromUri(it.uri) }
-        val selectedIndex = tracks.indexOf(selectedTrack)
+        val selectedIndex = tracks.indexOf(track)
         exoPlayer.setMediaItems(mediaItems, selectedIndex, 0)
         exoPlayer.prepare()
         exoPlayer.play()
@@ -111,6 +111,10 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
 
     override fun pause() {
         exoPlayer.pause()
+    }
+
+    override fun unpause() {
+        exoPlayer.play()
     }
 
     override fun skipToNext() {

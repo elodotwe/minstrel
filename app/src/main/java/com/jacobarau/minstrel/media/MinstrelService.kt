@@ -71,7 +71,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
     private val sessionCallback = object : MediaSessionCompat.Callback() {
         override fun onPlay() {
             Log.d(tag, "onPlay")
-            player.togglePlayPause()
+            player.unpause()
             if (!isStarted) {
                 // MediaButtonReceiver binds us when handling a Bluetooth button press, but we are only
                 // bound at that point. We need to become started too if we're to keep a notification
@@ -82,7 +82,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
         override fun onPause() {
             Log.d(tag, "onPause")
-            player.togglePlayPause()
+            player.pause()
         }
 
         override fun onStop() {
@@ -93,16 +93,19 @@ class MinstrelService : MediaBrowserServiceCompat() {
         override fun onSkipToNext() {
             Log.d(tag, "onSkipToNext")
             player.skipToNext()
+            player.unpause()
         }
 
         override fun onSkipToPrevious() {
             Log.d(tag, "onSkipToPrevious")
             player.skipToPrevious()
+            player.unpause()
         }
 
         override fun onSkipToQueueItem(id: Long) {
             Log.d(tag, "onSkipToQueueItem $id")
             player.skipToTrack(id.toInt())
+            player.unpause()
         }
 
         override fun onPlayFromMediaId(mediaId: String, extras: Bundle?) {

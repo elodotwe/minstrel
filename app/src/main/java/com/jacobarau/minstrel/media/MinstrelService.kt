@@ -269,8 +269,8 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
     private fun createNotification(state: PlaybackState): Notification {
         val controller = mediaSession.controller
-        val mediaMetadata = controller.metadata
-        val description = mediaMetadata.description
+        val mediaMetadata: MediaMetadataCompat? = controller.metadata
+        val description: MediaDescriptionCompat? = mediaMetadata?.description
 
         val activityIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -301,10 +301,10 @@ class MinstrelService : MediaBrowserServiceCompat() {
         }
 
         val builder = NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setContentTitle(description.title)
-            .setContentText(description.subtitle)
-            .setSubText(description.description)
-            .setLargeIcon(description.iconBitmap)
+            .setContentTitle(description?.title ?: "Loading")
+            .setContentText(description?.subtitle ?: "Loading")
+            .setSubText(description?.description ?: "")
+            .setLargeIcon(description?.iconBitmap)
             .setContentIntent(pendingIntent)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)

@@ -18,13 +18,14 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.media.MediaBrowserServiceCompat
 import androidx.media.app.NotificationCompat.MediaStyle
+import androidx.media.utils.MediaConstants.BROWSER_SERVICE_EXTRAS_KEY_SEARCH_SUPPORTED
 import com.jacobarau.minstrel.MainActivity
 import com.jacobarau.minstrel.NOTIFICATION_CHANNEL_ID
 import com.jacobarau.minstrel.R
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
-import com.jacobarau.minstrel.player.Player
 import com.jacobarau.minstrel.player.PlaybackState
+import com.jacobarau.minstrel.player.Player
 import com.jacobarau.minstrel.repository.TrackRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -36,6 +37,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -109,7 +111,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
         }
 
         override fun onPlayFromMediaId(mediaId: String, extras: Bundle?) {
-            Log.d(tag, "onPlayFromMediaId $mediaId")
+            Log.d(tag, "onPlayFromMediaId $mediaId, extras: $extras")
             if (!isStarted) {
                 // If invoked from Android Auto we may only be bound. Ensure we're started.
                 startForegroundService(Intent(applicationContext, MinstrelService::class.java))
@@ -355,8 +357,30 @@ class MinstrelService : MediaBrowserServiceCompat() {
         clientUid: Int,
         rootHints: Bundle?
     ): BrowserRoot {
+
         // For now, allow anyone to connect.
-        return BrowserRoot(MY_MEDIA_ROOT_ID, null)
+        val root = BrowserRoot(MY_MEDIA_ROOT_ID, Bundle())
+        root.extras.putBoolean(BROWSER_SERVICE_EXTRAS_KEY_SEARCH_SUPPORTED, true)
+        return root
+    }
+
+    override fun onSearch(
+        query: String,
+        extras: Bundle?,
+        result: Result<List<MediaBrowserCompat.MediaItem?>?>
+    ) {
+        Log.d(tag, "onSearch query: $query")
+        result.detach()
+        trackRepository.getTracks(query).onEach { trackListState ->
+            when (trackListState) {
+                is TrackListState.Success -> {
+                    result.sendResult(trackListState.tracks.take(100).map(Track::toMediaItem))
+                }
+                else -> result.sendError(null)
+            }
+        }
+            .take(1)
+            .launchIn(serviceScope)
     }
 
     override fun onLoadChildren(
@@ -395,11 +419,18 @@ private fun PlaybackState.toPlaybackStateCompat(): Int {
     }
 }
 
-private fun Track.toQueueItem(id: Long): MediaSessionCompat.QueueItem {
-    val description = MediaDescriptionCompat.Builder()
+private fun Track.getDescription(): MediaDescriptionCompat {
+    return MediaDescriptionCompat.Builder()
         .setMediaId(uri.toString())
         .setTitle(title)
         .setSubtitle(artist)
         .build()
-    return MediaSessionCompat.QueueItem(description, id)
+}
+
+private fun Track.toQueueItem(id: Long): MediaSessionCompat.QueueItem {
+    return MediaSessionCompat.QueueItem(getDescription(), id)
+}
+
+private fun Track.toMediaItem(): MediaBrowserCompat.MediaItem {
+    return MediaBrowserCompat.MediaItem(getDescription(), MediaBrowserCompat.MediaItem.FLAG_PLAYABLE)
 }

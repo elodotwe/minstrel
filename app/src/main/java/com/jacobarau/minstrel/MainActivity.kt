@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -74,11 +76,16 @@ class MainActivity : ComponentActivity() {
                 val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
                 val trackProgress by viewModel.trackProgressMillis.collectAsStateWithLifecycle()
                 val trackDuration by viewModel.trackDurationMillis.collectAsStateWithLifecycle()
+                val isPreviousEnabled by viewModel.isPreviousEnabled.collectAsStateWithLifecycle()
+                val isNextEnabled by viewModel.isNextEnabled.collectAsStateWithLifecycle()
+
                 var searchQuery by remember { mutableStateOf("") }
                 var searchExpanded by remember { mutableStateOf(false) }
                 val focusRequester = remember { FocusRequester() }
 
-                Scaffold(modifier = Modifier.fillMaxSize().imePadding(),
+                Scaffold(modifier = Modifier
+                    .fillMaxSize()
+                    .imePadding(),
                     topBar = {
                         TopAppBar(
                             title = {
@@ -150,10 +157,28 @@ class MainActivity : ComponentActivity() {
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                         Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = { viewModel.onPreviousClicked() },
+                                                enabled = isPreviousEnabled
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.SkipPrevious,
+                                                    contentDescription = "Previous"
+                                                )
+                                            }
                                             IconButton(onClick = { viewModel.onPlayPauseClicked() }) {
                                                 Icon(
                                                     imageVector = if (playbackState is PlaybackState.Playing) Icons.Default.Pause else Icons.Default.PlayArrow,
                                                     contentDescription = "Play/Pause"
+                                                )
+                                            }
+                                            IconButton(
+                                                onClick = { viewModel.onNextClicked() },
+                                                enabled = isNextEnabled
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.SkipNext,
+                                                    contentDescription = "Next"
                                                 )
                                             }
                                             Text(text = track.filename)

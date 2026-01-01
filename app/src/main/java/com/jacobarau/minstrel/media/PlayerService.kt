@@ -125,6 +125,7 @@ class PlayerService : LifecycleService() {
             }
 
             serviceScope.launch {
+                //TODO delegate the searching to the TrackRepository
                 val trackListState = trackRepository.getTracks().first { it is TrackListState.Success }
                 if (trackListState is TrackListState.Success) {
                     val allTracks = trackListState.tracks

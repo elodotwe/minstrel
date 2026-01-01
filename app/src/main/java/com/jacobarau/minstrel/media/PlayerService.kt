@@ -152,6 +152,12 @@ class PlayerService : LifecycleService() {
         override fun onSeekTo(pos: Long) {
             player.seekTo(pos)
         }
+
+        override fun onSetShuffleMode(shuffleMode: Int) {
+            val enabled = shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_ALL
+            player.setShuffleModeEnabled(enabled)
+            mediaSession.setShuffleMode(shuffleMode)
+        }
     }
 
     inner class PlayerBinder : Binder() {
@@ -239,6 +245,15 @@ class PlayerService : LifecycleService() {
             }
             .launchIn(serviceScope)
 
+        player.shuffleModeEnabled.onEach { enabled ->
+            val shuffleMode = if (enabled) {
+                PlaybackStateCompat.SHUFFLE_MODE_ALL
+            } else {
+                PlaybackStateCompat.SHUFFLE_MODE_NONE
+            }
+            mediaSession.setShuffleMode(shuffleMode)
+        }.launchIn(serviceScope)
+
         combine(
             player.playbackState,
             player.currentTrack,
@@ -251,7 +266,8 @@ class PlayerService : LifecycleService() {
                     PlaybackStateCompat.ACTION_PLAY_PAUSE or
                     PlaybackStateCompat.ACTION_STOP or
                     PlaybackStateCompat.ACTION_SEEK_TO or
-                    PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM
+                    PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM or
+                    PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE
             if (trackIndex > 0) {
                 actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
             }

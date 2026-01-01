@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.BottomAppBar
@@ -78,6 +79,7 @@ class MainActivity : ComponentActivity() {
                 val trackDuration by viewModel.trackDurationMillis.collectAsStateWithLifecycle()
                 val isPreviousEnabled by viewModel.isPreviousEnabled.collectAsStateWithLifecycle()
                 val isNextEnabled by viewModel.isNextEnabled.collectAsStateWithLifecycle()
+                val shuffleModeEnabled by viewModel.shuffleModeEnabled.collectAsStateWithLifecycle()
 
                 var searchQuery by remember { mutableStateOf("") }
                 var searchExpanded by remember { mutableStateOf(false) }
@@ -179,6 +181,13 @@ class MainActivity : ComponentActivity() {
                                                 Icon(
                                                     imageVector = Icons.Default.SkipNext,
                                                     contentDescription = "Next"
+                                                )
+                                            }
+                                            IconButton(onClick = { viewModel.onShuffleClicked() }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Shuffle,
+                                                    contentDescription = "Shuffle",
+                                                    tint = if (shuffleModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                                 )
                                             }
                                             Text(text = track.filename)

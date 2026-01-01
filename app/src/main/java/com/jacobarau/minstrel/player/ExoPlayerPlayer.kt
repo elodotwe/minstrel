@@ -50,6 +50,9 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     private val _trackDurationMillis = MutableStateFlow(0L)
     override val trackDurationMillis: StateFlow<Long> = _trackDurationMillis.asStateFlow()
 
+    private val _shuffleModeEnabled = MutableStateFlow(false)
+    override val shuffleModeEnabled: StateFlow<Boolean> = _shuffleModeEnabled.asStateFlow()
+
     init {
         exoPlayer.addListener(object : ExoPlayerListener.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -136,6 +139,11 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     override fun stop() {
         exoPlayer.stop()
         _playbackState.value = PlaybackState.Stopped
+    }
+
+    override fun setShuffleModeEnabled(enabled: Boolean) {
+        exoPlayer.shuffleModeEnabled = enabled
+        _shuffleModeEnabled.value = enabled
     }
 
     override fun release() {

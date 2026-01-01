@@ -82,6 +82,13 @@ class TrackViewModel @Inject constructor(
             initialValue = 0L
         )
 
+    val shuffleModeEnabled: StateFlow<Boolean> = player.shuffleModeEnabled
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
+
     fun onTrackSelected(track: Track, trackListState: TrackListState) {
         if (trackListState is TrackListState.Success) {
             player.play(trackListState.tracks, track)
@@ -101,36 +108,14 @@ class TrackViewModel @Inject constructor(
     }
 
     fun onPreviousClicked() {
-        val trackListState = tracks.value
-        val currentPlaybackState = playbackState.value
-        if (trackListState is TrackListState.Success && currentPlaybackState !is PlaybackState.Stopped) {
-            val currentTrack = when (currentPlaybackState) {
-                is PlaybackState.Playing -> currentPlaybackState.track
-                is PlaybackState.Paused -> currentPlaybackState.track
-                else -> return
-            }
-            val currentIndex = trackListState.tracks.indexOf(currentTrack)
-            if (currentIndex > 0) {
-                val previousTrack = trackListState.tracks[currentIndex - 1]
-                player.play(trackListState.tracks, previousTrack)
-            }
-        }
+        player.skipToPrevious()
     }
 
     fun onNextClicked() {
-        val trackListState = tracks.value
-        val currentPlaybackState = playbackState.value
-        if (trackListState is TrackListState.Success && currentPlaybackState !is PlaybackState.Stopped) {
-            val currentTrack = when (currentPlaybackState) {
-                is PlaybackState.Playing -> currentPlaybackState.track
-                is PlaybackState.Paused -> currentPlaybackState.track
-                else -> return
-            }
-            val currentIndex = trackListState.tracks.indexOf(currentTrack)
-            if (currentIndex < trackListState.tracks.size - 1) {
-                val nextTrack = trackListState.tracks[currentIndex + 1]
-                player.play(trackListState.tracks, nextTrack)
-            }
-        }
+        player.skipToNext()
+    }
+
+    fun onShuffleClicked() {
+        player.setShuffleModeEnabled(!shuffleModeEnabled.value)
     }
 }

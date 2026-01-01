@@ -40,6 +40,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private const val NOTIFICATION_ID = 1
+private const val CUSTOM_ACTION_SHUFFLE = "com.jacobarau.minstrel.media.SHUFFLE"
 
 @AndroidEntryPoint
 class PlayerService : LifecycleService() {
@@ -153,10 +154,14 @@ class PlayerService : LifecycleService() {
             player.seekTo(pos)
         }
 
-        override fun onSetShuffleMode(shuffleMode: Int) {
-            val enabled = shuffleMode == PlaybackStateCompat.SHUFFLE_MODE_ALL
-            player.setShuffleModeEnabled(enabled)
-            mediaSession.setShuffleMode(shuffleMode)
+        override fun onCustomAction(action: String, extras: Bundle?) {
+            when (action) {
+                CUSTOM_ACTION_SHUFFLE -> {
+                    val currentShuffleMode = player.shuffleModeEnabled.value
+                    player.setShuffleModeEnabled(!currentShuffleMode)
+                }
+                else -> Log.w(tag, "Unhandled custom action: $action")
+            }
         }
     }
 
@@ -258,16 +263,17 @@ class PlayerService : LifecycleService() {
             player.playbackState,
             player.currentTrack,
             player.tracks,
-            player.trackProgressMillis
-        ) { state, track, tracks, progress ->
+            player.trackProgressMillis,
+            player.shuffleModeEnabled
+        ) { state, track, tracks, progress, shuffleEnabled ->
             val trackIndex = tracks.indexOf(track)
             var actions = PlaybackStateCompat.ACTION_PLAY or
                     PlaybackStateCompat.ACTION_PAUSE or
                     PlaybackStateCompat.ACTION_PLAY_PAUSE or
                     PlaybackStateCompat.ACTION_STOP or
                     PlaybackStateCompat.ACTION_SEEK_TO or
-                    PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM or
-                    PlaybackStateCompat.ACTION_SET_SHUFFLE_MODE
+                    PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM
+
             if (trackIndex > 0) {
                 actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
             }
@@ -275,8 +281,19 @@ class PlayerService : LifecycleService() {
                 actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
             }
 
+            val shuffleAction = if (shuffleEnabled) {
+                PlaybackStateCompat.CustomAction.Builder(
+                    CUSTOM_ACTION_SHUFFLE, "Shuffle On", R.drawable.ic_shuffle_on
+                ).build()
+            } else {
+                PlaybackStateCompat.CustomAction.Builder(
+                    CUSTOM_ACTION_SHUFFLE, "Shuffle Off", R.drawable.ic_shuffle
+                ).build()
+            }
+
             PlaybackStateCompat.Builder()
                 .setActions(actions)
+                .addCustomAction(shuffleAction)
                 .setState(
                     state.toPlaybackStateCompat(),
                     progress,

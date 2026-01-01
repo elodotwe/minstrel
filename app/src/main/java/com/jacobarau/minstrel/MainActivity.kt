@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
                 var searchExpanded by remember { mutableStateOf(false) }
                 val focusRequester = remember { FocusRequester() }
 
-                Scaffold(modifier = Modifier.fillMaxSize(),
+                Scaffold(modifier = Modifier.fillMaxSize().imePadding(),
                     topBar = {
                         TopAppBar(
                             title = {
@@ -219,7 +219,6 @@ fun TrackList(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .imePadding()
                 ) {
                     itemsIndexed(trackListState.tracks) { _, track ->
                         val isPlaying = track == currentTrack

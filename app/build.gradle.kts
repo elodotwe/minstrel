@@ -54,6 +54,7 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
 
     implementation(libs.hilt.android)
+    implementation(libs.androidx.lifecycle.service)
     kapt(libs.hilt.compiler)
 
     implementation(libs.androidx.media3.exoplayer)

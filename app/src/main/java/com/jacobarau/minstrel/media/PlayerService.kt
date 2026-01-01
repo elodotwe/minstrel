@@ -8,21 +8,20 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.media.AudioManager
+import android.os.Binder
 import android.os.Bundle
-import android.support.v4.media.MediaBrowserCompat
-import android.support.v4.media.MediaDescriptionCompat
+import android.os.IBinder
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.media.MediaBrowserServiceCompat
-import androidx.media.app.NotificationCompat.MediaStyle
-import androidx.media.utils.MediaConstants.BROWSER_SERVICE_EXTRAS_KEY_SEARCH_SUPPORTED
+import androidx.lifecycle.LifecycleService
+import androidx.media.app.NotificationCompat as MediaNotificationCompat
+import androidx.media.session.MediaButtonReceiver
 import com.jacobarau.minstrel.MainActivity
 import com.jacobarau.minstrel.NOTIFICATION_CHANNEL_ID
 import com.jacobarau.minstrel.R
-import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.player.PlaybackState
 import com.jacobarau.minstrel.player.Player
@@ -37,16 +36,13 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-private const val MY_MEDIA_ROOT_ID = "media_root_id"
 private const val NOTIFICATION_ID = 1
 
 @AndroidEntryPoint
-class MinstrelService : MediaBrowserServiceCompat() {
-
+class PlayerService : LifecycleService() {
     private val tag = this.javaClass.simpleName
 
     @Inject
@@ -57,7 +53,6 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
     private lateinit var mediaSession: MediaSessionCompat
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-
     private var isStarted = false
 
     private val becomingNoisyReceiver = object : BroadcastReceiver() {
@@ -69,16 +64,12 @@ class MinstrelService : MediaBrowserServiceCompat() {
     }
     private val intentFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
 
-
     private val sessionCallback = object : MediaSessionCompat.Callback() {
         override fun onPlay() {
             Log.d(tag, "onPlay")
             player.unpause()
             if (!isStarted) {
-                // MediaButtonReceiver binds us when handling a Bluetooth button press, but we are only
-                // bound at that point. We need to become started too if we're to keep a notification
-                // or a media session.
-                startForegroundService(Intent(applicationContext, MinstrelService::class.java))
+                startForegroundService(Intent(applicationContext, PlayerService::class.java))
             }
         }
 
@@ -113,8 +104,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
         override fun onPlayFromMediaId(mediaId: String, extras: Bundle?) {
             Log.d(tag, "onPlayFromMediaId $mediaId, extras: $extras")
             if (!isStarted) {
-                // If invoked from Android Auto we may only be bound. Ensure we're started.
-                startForegroundService(Intent(applicationContext, MinstrelService::class.java))
+                startForegroundService(Intent(applicationContext, PlayerService::class.java))
             }
             serviceScope.launch {
                 val trackListState = trackRepository.getTracks().first { it is TrackListState.Success }
@@ -130,7 +120,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
         override fun onPlayFromSearch(query: String?, extras: Bundle?) {
             Log.d(tag, "onPlayFromSearch query: $query")
             if (!isStarted) {
-                startForegroundService(Intent(applicationContext, MinstrelService::class.java))
+                startForegroundService(Intent(applicationContext, PlayerService::class.java))
             }
 
             serviceScope.launch {
@@ -164,27 +154,66 @@ class MinstrelService : MediaBrowserServiceCompat() {
         }
     }
 
+    inner class PlayerBinder : Binder() {
+        fun getMediaSessionToken(): MediaSessionCompat.Token {
+            return mediaSession.sessionToken
+        }
+    }
+
+    override fun onBind(intent: Intent): IBinder {
+        super.onBind(intent)
+        return PlayerBinder()
+    }
+
     override fun onCreate() {
         super.onCreate()
         Log.d(tag, "onCreate")
 
-        mediaSession = MediaSessionCompat(this, "Minstrel").apply {
+        mediaSession = MediaSessionCompat(this, "Minstrel-Player").apply {
             setCallback(sessionCallback)
             isActive = true
         }
-        sessionToken = mediaSession.sessionToken
 
         registerReceiver(becomingNoisyReceiver, intentFilter)
 
-        player.tracks
-            .onEach { tracks ->
-                Log.d(tag, "Tracks changed. Updating queue.")
-                val queue =
+        combine(player.tracks, player.currentTrack) { tracks, currentTrack ->
+            Pair(tracks, currentTrack)
+        }
+            .onEach { (tracks, currentTrack) ->
+                Log.d(tag, "Tracks or current track changed. Updating queue.")
+
+                val allQueueItems =
                     tracks.mapIndexed { index, track -> track.toQueueItem(index.toLong()) }
-                        .take(100)
+
+
+                val maxQueueLength = 100
+                val queue = if (allQueueItems.size <= maxQueueLength) {
+                    // If the list is small enough, just use it as is.
+                    allQueueItems
+                } else {
+                    val currentIndex = tracks.indexOf(currentTrack)
+
+                    // If the current track isn't found or is early in the list,
+                    // we can safely start the sublist from its index.
+                    // We use coerceAtLeast(0) to treat the "not found" case (-1) as the start of the list.
+                    val startIndex = currentIndex.coerceAtLeast(0)
+
+                    // Determine the end index. It's either the start + 100 or the end of the list.
+                    val endIndex = (startIndex + maxQueueLength).coerceAtMost(allQueueItems.size)
+
+                    // If our calculated window is smaller than 100 (because we're at the end),
+                    // we should instead just take the last 100 items.
+                    if (endIndex - startIndex < maxQueueLength) {
+                        allQueueItems.takeLast(maxQueueLength)
+                    } else {
+                        allQueueItems.subList(startIndex, endIndex)
+                    }
+                }
+
+                // Limit to 100 tracks. Android Auto will fail to show the queue if we send
+                // too many items.
                 mediaSession.setQueue(queue)
                 mediaSession.setQueueTitle("Up Next")
-                notifyChildrenChanged(MY_MEDIA_ROOT_ID)
             }
             .launchIn(serviceScope)
 
@@ -247,9 +276,11 @@ class MinstrelService : MediaBrowserServiceCompat() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
         Log.d(tag, "onStartCommand $intent $flags $startId")
+        MediaButtonReceiver.handleIntent(mediaSession, intent)
         isStarted = true
-        return super.onStartCommand(intent, flags, startId)
+        return START_STICKY
     }
 
     private fun updateNotification(state: PlaybackState) {
@@ -274,8 +305,8 @@ class MinstrelService : MediaBrowserServiceCompat() {
 
     private fun createNotification(state: PlaybackState): Notification {
         val controller = mediaSession.controller
-        val mediaMetadata: MediaMetadataCompat? = controller.metadata
-        val description: MediaDescriptionCompat? = mediaMetadata?.description
+        val mediaMetadata = controller.metadata
+        val description = mediaMetadata?.description
 
         val activityIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(
@@ -289,7 +320,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
             NotificationCompat.Action(
                 R.drawable.ic_pause,
                 "Pause",
-                androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(
+                MediaButtonReceiver.buildMediaButtonPendingIntent(
                     this,
                     PlaybackStateCompat.ACTION_PAUSE
                 )
@@ -298,7 +329,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
             NotificationCompat.Action(
                 R.drawable.ic_play_arrow,
                 "Play",
-                androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(
+                MediaButtonReceiver.buildMediaButtonPendingIntent(
                     this,
                     PlaybackStateCompat.ACTION_PLAY
                 )
@@ -317,7 +348,7 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 NotificationCompat.Action(
                     R.drawable.ic_skip_previous,
                     "Previous",
-                    androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(
+                    MediaButtonReceiver.buildMediaButtonPendingIntent(
                         this,
                         PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
                     )
@@ -328,21 +359,20 @@ class MinstrelService : MediaBrowserServiceCompat() {
                 NotificationCompat.Action(
                     R.drawable.ic_skip_next,
                     "Next",
-                    androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(
+                    MediaButtonReceiver.buildMediaButtonPendingIntent(
                         this,
                         PlaybackStateCompat.ACTION_SKIP_TO_NEXT
                     )
                 )
             )
             .setStyle(
-                MediaStyle()
+                MediaNotificationCompat.MediaStyle()
                     .setMediaSession(mediaSession.sessionToken)
                     .setShowActionsInCompactView(0, 1, 2)
             )
 
         return builder.build()
     }
-
 
     override fun onDestroy() {
         Log.d(tag, "onDestroy")
@@ -351,86 +381,4 @@ class MinstrelService : MediaBrowserServiceCompat() {
         serviceScope.cancel()
         mediaSession.release()
     }
-
-    override fun onGetRoot(
-        clientPackageName: String,
-        clientUid: Int,
-        rootHints: Bundle?
-    ): BrowserRoot {
-
-        // For now, allow anyone to connect.
-        val root = BrowserRoot(MY_MEDIA_ROOT_ID, Bundle())
-        root.extras.putBoolean(BROWSER_SERVICE_EXTRAS_KEY_SEARCH_SUPPORTED, true)
-        return root
-    }
-
-    override fun onSearch(
-        query: String,
-        extras: Bundle?,
-        result: Result<List<MediaBrowserCompat.MediaItem?>?>
-    ) {
-        Log.d(tag, "onSearch query: $query")
-        result.detach()
-        trackRepository.getTracks(query).onEach { trackListState ->
-            when (trackListState) {
-                is TrackListState.Success -> {
-                    result.sendResult(trackListState.tracks.take(100).map(Track::toMediaItem))
-                }
-                else -> result.sendError(null)
-            }
-        }
-            .take(1)
-            .launchIn(serviceScope)
-    }
-
-    override fun onLoadChildren(
-        parentId: String,
-        result: Result<List<MediaBrowserCompat.MediaItem>>
-    ) {
-        if (MY_MEDIA_ROOT_ID != parentId) {
-            result.sendResult(null)
-            return
-        }
-
-        result.detach()
-
-        serviceScope.launch {
-            val trackListState = trackRepository.getTracks().first { it is TrackListState.Success }
-            if (trackListState is TrackListState.Success) {
-                val mediaItems = trackListState.tracks.map { track ->
-                    val description = MediaDescriptionCompat.Builder()
-                        .setMediaId(track.uri.toString())
-                        .setTitle(track.title)
-                        .setSubtitle(track.artist)
-                        .build()
-                    MediaBrowserCompat.MediaItem(description, MediaBrowserCompat.MediaItem.FLAG_PLAYABLE)
-                }.take(100)
-                result.sendResult(mediaItems)
-            }
-        }
-    }
-}
-
-private fun PlaybackState.toPlaybackStateCompat(): Int {
-    return when (this) {
-        is PlaybackState.Playing -> PlaybackStateCompat.STATE_PLAYING
-        is PlaybackState.Paused -> PlaybackStateCompat.STATE_PAUSED
-        is PlaybackState.Stopped -> PlaybackStateCompat.STATE_STOPPED
-    }
-}
-
-private fun Track.getDescription(): MediaDescriptionCompat {
-    return MediaDescriptionCompat.Builder()
-        .setMediaId(uri.toString())
-        .setTitle(title)
-        .setSubtitle(artist)
-        .build()
-}
-
-private fun Track.toQueueItem(id: Long): MediaSessionCompat.QueueItem {
-    return MediaSessionCompat.QueueItem(getDescription(), id)
-}
-
-private fun Track.toMediaItem(): MediaBrowserCompat.MediaItem {
-    return MediaBrowserCompat.MediaItem(getDescription(), MediaBrowserCompat.MediaItem.FLAG_PLAYABLE)
 }

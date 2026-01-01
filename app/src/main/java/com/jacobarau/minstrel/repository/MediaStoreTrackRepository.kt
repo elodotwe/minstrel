@@ -75,8 +75,17 @@ class MediaStoreTrackRepository @Inject constructor(
         selectionClauses.add("${MediaStore.Audio.Media.IS_MUSIC} != 0")
 
         if (!filter.isNullOrBlank()) {
-            selectionClauses.add("${MediaStore.Audio.Media.DATA} LIKE ?")
-            selectionArgs.add("%$filter%")
+            val filterPattern = "%$filter%"
+            selectionClauses.add(
+                "(${MediaStore.Audio.Media.DATA} LIKE ? OR " +
+                        "${MediaStore.Audio.Media.TITLE} LIKE ? OR " +
+                        "${MediaStore.Audio.Media.ALBUM} LIKE ? OR " +
+                        "${MediaStore.Audio.Media.ARTIST} LIKE ?)"
+            )
+            selectionArgs.add(filterPattern)
+            selectionArgs.add(filterPattern)
+            selectionArgs.add(filterPattern)
+            selectionArgs.add(filterPattern)
         }
 
         val selection = selectionClauses.joinToString(" AND ")

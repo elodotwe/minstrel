@@ -11,8 +11,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.snapping.SnapPosition
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -349,6 +352,7 @@ fun formatTime(millis: Long): String {
     return String.format("%02d:%02d", minutes, seconds)
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackList(
     trackListState: TrackListState,
@@ -373,6 +377,7 @@ fun TrackList(
                     else -> null
                 }
                 val lazyListState = rememberLazyListState()
+                val flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState, snapPosition = SnapPosition.Start)
                 val coroutineScope = rememberCoroutineScope()
 
                 LaunchedEffect(currentTrack, trackListState) {
@@ -388,6 +393,7 @@ fun TrackList(
 
                 LazyColumn(
                     state = lazyListState,
+                    flingBehavior = flingBehavior,
                     modifier = Modifier
                         .fillMaxSize()
                 ) {

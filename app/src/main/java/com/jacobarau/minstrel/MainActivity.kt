@@ -1,10 +1,15 @@
 package com.jacobarau.minstrel
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.speech.RecognizerIntent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,13 +27,13 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -53,9 +58,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
@@ -90,6 +97,60 @@ class MainActivity : ComponentActivity() {
                 var searchQuery by remember { mutableStateOf("") }
                 var searchExpanded by remember { mutableStateOf(false) }
                 val focusRequester = remember { FocusRequester() }
+                val context = LocalContext.current
+
+                val speechRecognitionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.StartActivityForResult()
+                ) { result ->
+                    if (result.resultCode == RESULT_OK) {
+                        val data: Intent? = result.data
+                        val results = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                        if (!results.isNullOrEmpty()) {
+                            val spokenText = results[0]
+                            searchQuery = spokenText
+                            viewModel.onSearchQueryChanged(spokenText)
+                        }
+                    }
+                }
+
+                val requestPermissionLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission()
+                ) { isGranted: Boolean ->
+                    if (isGranted) {
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(
+                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                            )
+                            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now")
+                        }
+                        speechRecognitionLauncher.launch(intent)
+                    } else {
+                        println("RECORD_AUDIO permission denied")
+                    }
+                }
+
+                fun launchVoiceSearch() {
+                    when {
+                        ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.RECORD_AUDIO
+                        ) == PackageManager.PERMISSION_GRANTED -> {
+                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                putExtra(
+                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                                )
+                                putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak now")
+                            }
+                            speechRecognitionLauncher.launch(intent)
+                        }
+                        else -> {
+                            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        }
+                    }
+                }
+
 
                 Scaffold(modifier = Modifier
                     .fillMaxSize()
@@ -109,16 +170,24 @@ class MainActivity : ComponentActivity() {
                                             .focusRequester(focusRequester),
                                         placeholder = { Text("Search") },
                                         trailingIcon = {
-                                            IconButton(onClick = {
-                                                println("collapsing search")
-                                                searchQuery = ""
-                                                viewModel.onSearchQueryChanged("")
-                                                searchExpanded = false
-                                            }) {
-                                                Icon(
-                                                    Icons.Default.Close,
-                                                    contentDescription = "Clear and close search"
-                                                )
+                                            Row {
+                                                IconButton(onClick = { launchVoiceSearch() }) {
+                                                    Icon(
+                                                        Icons.Default.Mic,
+                                                        contentDescription = "Search by voice"
+                                                    )
+                                                }
+                                                IconButton(onClick = {
+                                                    println("collapsing search")
+                                                    searchQuery = ""
+                                                    viewModel.onSearchQueryChanged("")
+                                                    searchExpanded = false
+                                                }) {
+                                                    Icon(
+                                                        Icons.Default.Close,
+                                                        contentDescription = "Clear and close search"
+                                                    )
+                                                }
                                             }
                                         },
                                         colors = TextFieldDefaults.colors(
@@ -444,14 +513,22 @@ fun MainActivityPreview() {
                                     .focusRequester(focusRequester),
                                 placeholder = { Text("Search") },
                                 trailingIcon = {
-                                    IconButton(onClick = {
-                                        searchQuery = ""
-                                        searchExpanded = false
-                                    }) {
-                                        Icon(
-                                            Icons.Default.Close,
-                                            contentDescription = "Clear and close search"
-                                        )
+                                    Row {
+                                        IconButton(onClick = { }) {
+                                            Icon(
+                                                Icons.Default.Mic,
+                                                contentDescription = "Search by voice"
+                                            )
+                                        }
+                                        IconButton(onClick = {
+                                            searchQuery = ""
+                                            searchExpanded = false
+                                        }) {
+                                            Icon(
+                                                Icons.Default.Close,
+                                                contentDescription = "Clear and close search"
+                                            )
+                                        }
                                     }
                                 },
                                 colors = TextFieldDefaults.colors(

@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Pause
@@ -42,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +61,7 @@ import com.jacobarau.minstrel.player.PlaybackState
 import com.jacobarau.minstrel.ui.TrackViewModel
 import com.jacobarau.minstrel.ui.theme.MinstrelTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 @AndroidEntryPoint
@@ -249,8 +252,22 @@ fun TrackList(
                     is PlaybackState.Paused -> playbackState.track
                     else -> null
                 }
+                val lazyListState = rememberLazyListState()
+                val coroutineScope = rememberCoroutineScope()
+
+                LaunchedEffect(currentTrack, trackListState) {
+                    currentTrack?.let {
+                        val index = trackListState.tracks.indexOf(it)
+                        if (index != -1) {
+                            coroutineScope.launch {
+                                lazyListState.animateScrollToItem(index)
+                            }
+                        }
+                    }
+                }
 
                 LazyColumn(
+                    state = lazyListState,
                     modifier = Modifier
                         .fillMaxSize()
                 ) {

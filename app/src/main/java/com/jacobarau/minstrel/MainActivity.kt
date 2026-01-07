@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -34,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -152,51 +155,99 @@ class MainActivity : ComponentActivity() {
                                 else -> null
                             }
                             if (track != null) {
-                                BottomAppBar {
-                                    Column(modifier = Modifier.fillMaxWidth()) {
-                                        val duration = trackDuration.toFloat().coerceAtLeast(0f)
+                                Surface(tonalElevation = 3.dp) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp)
+                                    ) {
+                                        val duration =
+                                            trackDuration.toFloat().coerceAtLeast(0f)
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = track.title ?: track.filename,
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Text(
+                                                text = formatTime(trackProgress),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                modifier = Modifier.padding(start = 8.dp)
+                                            )
+                                            Text(
+                                                text = " / ",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Text(
+                                                text = formatTime(trackDuration),
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
+
                                         Slider(
-                                            value = trackProgress.toFloat().coerceIn(0f, duration),
+                                            value = trackProgress
+                                                .toFloat()
+                                                .coerceIn(0f, duration),
                                             onValueChange = { viewModel.onSeek(it.toLong()) },
                                             valueRange = 0f..duration,
-                                            modifier = Modifier.fillMaxWidth()
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp)
                                         )
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceAround,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
                                             IconButton(
                                                 onClick = { viewModel.onPreviousClicked() },
-                                                enabled = isPreviousEnabled
+                                                enabled = isPreviousEnabled,
+                                                modifier = Modifier.size(64.dp)
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.SkipPrevious,
-                                                    contentDescription = "Previous"
+                                                    contentDescription = "Previous",
+                                                    modifier = Modifier.size(36.dp)
                                                 )
                                             }
-                                            IconButton(onClick = { viewModel.onPlayPauseClicked() }) {
+                                            IconButton(
+                                                onClick = { viewModel.onPlayPauseClicked() },
+                                                modifier = Modifier.size(80.dp) // Make play/pause bigger
+                                            ) {
                                                 Icon(
                                                     imageVector = if (playbackState is PlaybackState.Playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                                    contentDescription = "Play/Pause"
+                                                    contentDescription = "Play/Pause",
+                                                    modifier = Modifier.size(48.dp)
                                                 )
                                             }
                                             IconButton(
                                                 onClick = { viewModel.onNextClicked() },
-                                                enabled = isNextEnabled
+                                                enabled = isNextEnabled,
+                                                modifier = Modifier.size(64.dp)
                                             ) {
                                                 Icon(
                                                     imageVector = Icons.Default.SkipNext,
-                                                    contentDescription = "Next"
+                                                    contentDescription = "Next",
+                                                    modifier = Modifier.size(36.dp)
                                                 )
                                             }
-                                            IconButton(onClick = { viewModel.onShuffleClicked() }) {
+                                            IconButton(
+                                                onClick = { viewModel.onShuffleClicked() },
+                                                modifier = Modifier.size(64.dp)
+                                            ) {
                                                 Icon(
                                                     imageVector = Icons.Default.Shuffle,
                                                     contentDescription = "Shuffle",
-                                                    tint = if (shuffleModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                    tint = if (shuffleModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.size(36.dp)
                                                 )
                                             }
-                                            Text(text = track.filename)
-                                            Text(text = formatTime(trackProgress), modifier = Modifier.padding(start = 8.dp))
-                                            Text(text = "/")
-                                            Text(text = formatTime(trackDuration))
                                         }
                                     }
                                 }
@@ -283,7 +334,7 @@ fun TrackList(
                             modifier = Modifier
                                 .background(backgroundColor)
                                 .clickable { onTrackSelected(track) }
-                                .padding(vertical = 8.dp, horizontal = 16.dp)
+                                .padding(vertical = 24.dp, horizontal = 16.dp)
                                 .fillMaxWidth()
                         ) {
                             val textColor = if (isPlaying) {
@@ -298,13 +349,14 @@ fun TrackList(
                             }
                             Text(
                                 text = track.title ?: track.filename,
-                                color = textColor
+                                color = textColor,
+                                style = MaterialTheme.typography.headlineSmall
                             )
                             Text(
                                 text = track.directory,
                                 maxLines = 1,
                                 overflow = TextOverflow.StartEllipsis,
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodyLarge,
                                 color = secondaryTextColor,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -338,5 +390,209 @@ fun TrackListPreview() {
             playbackState = PlaybackState.Stopped,
             onTrackSelected = {}
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true)
+@Composable
+fun MainActivityPreview() {
+    MinstrelTheme {
+        val track1 = Track(
+            uri = android.net.Uri.EMPTY,
+            filename = "song1.mp3",
+            title = "The First Song",
+            directory = "/storage/emulated/0/Music/Album1"
+        )
+        val track2 = Track(
+            uri = android.net.Uri.EMPTY,
+            filename = "song2.mp3",
+            title = "The Second Song",
+            directory = "/storage/emulated/0/Music/Album2"
+        )
+        val trackListState = TrackListState.Success(
+            tracks = listOf(
+                track1,
+                track2
+            )
+        )
+        val playbackState = PlaybackState.Playing(track1)
+        val trackProgress = 15000L
+        val trackDuration = 120000L
+        val isPreviousEnabled = false
+        val isNextEnabled = true
+        val shuffleModeEnabled = true
+
+        var searchQuery by remember { mutableStateOf("") }
+        var searchExpanded by remember { mutableStateOf(false) }
+        val focusRequester = remember { FocusRequester() }
+
+        Scaffold(modifier = Modifier
+            .fillMaxSize()
+            .imePadding(),
+            topBar = {
+                TopAppBar(
+                    title = {
+                        if (searchExpanded) {
+                            TextField(
+                                value = searchQuery,
+                                onValueChange = {
+                                    searchQuery = it
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequester),
+                                placeholder = { Text("Search") },
+                                trailingIcon = {
+                                    IconButton(onClick = {
+                                        searchQuery = ""
+                                        searchExpanded = false
+                                    }) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            contentDescription = "Clear and close search"
+                                        )
+                                    }
+                                },
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent,
+                                    disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    disabledIndicatorColor = Color.Transparent,
+                                ),
+                                singleLine = true
+                            )
+                            LaunchedEffect(Unit) {
+                                focusRequester.requestFocus()
+                            }
+                        } else {
+                            Text("Minstrel")
+                        }
+                    },
+                    actions = {
+                        if (!searchExpanded) {
+                            IconButton(onClick = { searchExpanded = true }) {
+                                Icon(Icons.Filled.Search, contentDescription = "Search")
+                            }
+                        }
+                    }
+                )
+            },
+            bottomBar = {
+                if (playbackState !is PlaybackState.Stopped) {
+                    val track = when (val state = playbackState) {
+                        is PlaybackState.Playing -> state.track
+                        is PlaybackState.Paused -> state.track
+                        else -> null
+                    }
+                    if (track != null) {
+                        Surface(tonalElevation = 3.dp) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            ) {
+                                val duration =
+                                    trackDuration.toFloat().coerceAtLeast(0f)
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = track.title ?: track.filename,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Text(
+                                        text = formatTime(trackProgress),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(start = 8.dp)
+                                    )
+                                    Text(
+                                        text = " / ",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = formatTime(trackDuration),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                }
+
+                                Slider(
+                                    value = trackProgress
+                                        .toFloat()
+                                        .coerceIn(0f, duration),
+                                    onValueChange = { },
+                                    valueRange = 0f..duration,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 8.dp)
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceAround,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    IconButton(
+                                        onClick = { },
+                                        enabled = isPreviousEnabled,
+                                        modifier = Modifier.size(64.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SkipPrevious,
+                                            contentDescription = "Previous",
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { },
+                                        modifier = Modifier.size(80.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (playbackState is PlaybackState.Playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                            contentDescription = "Play/Pause",
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { },
+                                        enabled = isNextEnabled,
+                                        modifier = Modifier.size(64.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SkipNext,
+                                            contentDescription = "Next",
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { },
+                                        modifier = Modifier.size(64.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Shuffle,
+                                            contentDescription = "Shuffle",
+                                            tint = if (shuffleModeEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }) { innerPadding ->
+            TrackList(
+                trackListState = trackListState,
+                playbackState = playbackState,
+                onTrackSelected = { },
+                modifier = Modifier.padding(innerPadding)
+            )
+        }
     }
 }

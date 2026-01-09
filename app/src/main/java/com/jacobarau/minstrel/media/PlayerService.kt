@@ -45,6 +45,7 @@ import javax.inject.Inject
 
 private const val NOTIFICATION_ID = 1
 private const val CUSTOM_ACTION_SHUFFLE = "com.jacobarau.minstrel.media.SHUFFLE"
+private const val CUSTOM_ACTION_STOP = "com.jacobarau.minstrel.media.STOP"
 
 @AndroidEntryPoint
 class PlayerService : LifecycleService() {
@@ -171,6 +172,9 @@ class PlayerService : LifecycleService() {
                 CUSTOM_ACTION_SHUFFLE -> {
                     val currentShuffleMode = player.shuffleModeEnabled.value
                     player.setShuffleModeEnabled(!currentShuffleMode)
+                }
+                CUSTOM_ACTION_STOP -> {
+                    onStop()
                 }
                 else -> Log.w(tag, "Unhandled custom action: $action")
             }
@@ -341,9 +345,14 @@ class PlayerService : LifecycleService() {
                 ).build()
             }
 
+            val stopAction = PlaybackStateCompat.CustomAction.Builder(
+                CUSTOM_ACTION_STOP, "Stop", R.drawable.ic_stop
+            ).build()
+
             PlaybackStateCompat.Builder()
                 .setActions(actions)
                 .addCustomAction(shuffleAction)
+                .addCustomAction(stopAction)
                 .setState(
                     state.toPlaybackStateCompat(),
                     progress,

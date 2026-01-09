@@ -6,10 +6,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.ImageDecoder
 import android.media.AudioManager
 import android.os.Binder
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.provider.MediaStore
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
@@ -41,6 +44,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 private const val NOTIFICATION_ID = 1
@@ -293,6 +297,23 @@ class PlayerService : LifecycleService() {
                     .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, track?.artist)
                     .putString(MediaMetadataCompat.METADATA_KEY_ALBUM, track?.album)
                     .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration)
+
+                track?.albumArtUri?.let { uri ->
+                    withContext(Dispatchers.IO) {
+                        try {
+                            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                ImageDecoder.decodeBitmap(ImageDecoder.createSource(contentResolver, uri))
+                            } else {
+                                @Suppress("DEPRECATION")
+                                MediaStore.Images.Media.getBitmap(contentResolver, uri)
+                            }
+                            metadataBuilder.putBitmap(MediaMetadataCompat.METADATA_KEY_ALBUM_ART, bitmap)
+                        } catch (e: Exception) {
+                            Log.w(tag, "Failed to load album art", e)
+                        }
+                    }
+                }
+
                 mediaSession.setMetadata(metadataBuilder.build())
             }
             .launchIn(serviceScope)

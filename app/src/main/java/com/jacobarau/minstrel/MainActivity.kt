@@ -20,17 +20,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -67,6 +70,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.media.PlayerService
@@ -215,7 +219,7 @@ class MainActivity : ComponentActivity() {
                                     IconButton(onClick = { searchExpanded = true }) {
                                         Icon(Icons.Filled.Search, contentDescription = "Search")
                                     }
-                                }
+                                 }
                             }
                         )
                     },
@@ -236,42 +240,61 @@ class MainActivity : ComponentActivity() {
                                         val duration =
                                             trackDuration.toFloat().coerceAtLeast(0f)
 
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(
-                                                text = track.title ?: track.filename,
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier.weight(1f)
-                                            )
-                                            Text(
-                                                text = formatTime(trackProgress),
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                modifier = Modifier.padding(start = 8.dp)
-                                            )
-                                            Text(
-                                                text = " / ",
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                            Text(
-                                                text = formatTime(trackDuration),
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            var isAlbumArtVisible by remember { mutableStateOf(true) }
+                                            LaunchedEffect(track.albumArtUri) {
+                                                isAlbumArtVisible = true
+                                            }
+
+                                            if (track.albumArtUri != null && isAlbumArtVisible) {
+                                                AsyncImage(
+                                                    model = track.albumArtUri,
+                                                    contentDescription = "Album art",
+                                                    modifier = Modifier.size(64.dp),
+                                                    onError = { isAlbumArtVisible = false }
+                                                )
+                                                Spacer(modifier = Modifier.width(16.dp))
+                                            }
+
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = track.title ?: track.filename,
+                                                        style = MaterialTheme.typography.bodyLarge,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    Text(
+                                                        text = formatTime(trackProgress),
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        modifier = Modifier.padding(start = 8.dp)
+                                                    )
+                                                    Text(
+                                                        text = " / ",
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                    Text(
+                                                        text = formatTime(trackDuration),
+                                                        style = MaterialTheme.typography.bodyMedium
+                                                    )
+                                                }
+
+                                                Slider(
+                                                    value = trackProgress
+                                                        .toFloat()
+                                                        .coerceIn(0f, duration),
+                                                    onValueChange = { viewModel.onSeek(it.toLong()) },
+                                                    valueRange = 0f..duration,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                )
+                                            }
                                         }
 
-                                        Slider(
-                                            value = trackProgress
-                                                .toFloat()
-                                                .coerceIn(0f, duration),
-                                            onValueChange = { viewModel.onSeek(it.toLong()) },
-                                            valueRange = 0f..duration,
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 8.dp)
-                                        )
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceAround,

@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
 import android.database.ContentObserver
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -66,7 +67,8 @@ class MediaStoreTrackRepository @Inject constructor(
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.ARTIST
+            MediaStore.Audio.Media.ARTIST,
+            MediaStore.Audio.Media.ALBUM_ID
         )
 
         val selectionClauses = mutableListOf<String>()
@@ -103,18 +105,34 @@ class MediaStoreTrackRepository @Inject constructor(
             val titleColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
             val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val path = cursor.getString(dataColumn)
                 val title = cursor.getString(titleColumn)
                 val album = cursor.getString(albumColumn)
                 val artist = cursor.getString(artistColumn)
+                val albumId = cursor.getLong(albumIdColumn)
                 val file = File(path)
                 val contentUri = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
                     id
                 )
-                trackList.add(Track(contentUri, title, artist, album, file.name, file.parent ?: ""))
+                val albumArtUri = ContentUris.withAppendedId(
+                    Uri.parse("content://media/external/audio/albumart"),
+                    albumId
+                )
+                trackList.add(
+                    Track(
+                        contentUri,
+                        title,
+                        artist,
+                        album,
+                        file.name,
+                        file.parent ?: "",
+                        albumArtUri
+                    )
+                )
             }
         }
         return trackList

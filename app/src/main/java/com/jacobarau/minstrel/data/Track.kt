@@ -8,5 +8,6 @@ data class Track(
     val artist: String? = null,
     val album: String? = null,
     val filename: String,
-    val directory: String
+    val directory: String,
+    val albumArtUri: Uri? = null,
 )

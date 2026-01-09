@@ -1,7 +1,6 @@
 package com.jacobarau.minstrel.media
 
 import android.app.Notification
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -92,6 +91,7 @@ class PlayerService : LifecycleService() {
         override fun onStop() {
             Log.d(tag, "onStop")
             player.stop()
+            stopSelf()
         }
 
         override fun onSkipToNext() {
@@ -418,17 +418,10 @@ class PlayerService : LifecycleService() {
 
     private fun updateNotification(state: PlaybackState) {
         Log.d(tag, "updateNotification $state")
-        val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-
         when (state) {
-            is PlaybackState.Playing -> {
+            is PlaybackState.Playing, is PlaybackState.Paused -> {
                 val notification = createNotification(state)
                 startForeground(NOTIFICATION_ID, notification)
-            }
-            is PlaybackState.Paused -> {
-                stopForeground(STOP_FOREGROUND_DETACH)
-                val notification = createNotification(state)
-                notificationManager.notify(NOTIFICATION_ID, notification)
             }
             is PlaybackState.Stopped -> {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -510,6 +503,7 @@ class PlayerService : LifecycleService() {
     override fun onDestroy() {
         Log.i(tag, "onDestroy")
         isStarted = false
+        unregisterReceiver(becomingNoisyReceiver)
         super.onDestroy()
         serviceScope.cancel()
         mediaSession.release()

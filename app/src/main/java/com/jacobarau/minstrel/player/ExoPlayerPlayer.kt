@@ -71,6 +71,7 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
                 if (playbackState == ExoPlayerListener.STATE_ENDED) {
                     _playbackState.value = PlaybackState.Stopped
                 }
+                updatePlaybackState()
             }
         })
 
@@ -95,13 +96,13 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
         }
     }
 
-    override fun play(tracks: List<Track>, track: Track) {
+    override fun play(tracks: List<Track>, track: Track, playWhenReady: Boolean) {
         this._tracks.value = tracks
         val mediaItems = tracks.map { MediaItem.fromUri(it.uri) }
         val selectedIndex = tracks.indexOf(track)
         exoPlayer.setMediaItems(mediaItems, selectedIndex, 0)
+        exoPlayer.playWhenReady = playWhenReady
         exoPlayer.prepare()
-        exoPlayer.play()
     }
 
     override fun togglePlayPause() {
@@ -140,6 +141,8 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
         exoPlayer.stop()
         _playbackState.value = PlaybackState.Stopped
     }
+
+
 
     override fun setShuffleModeEnabled(enabled: Boolean) {
         exoPlayer.shuffleModeEnabled = enabled

@@ -22,6 +22,7 @@ import androidx.media.session.MediaButtonReceiver
 import com.jacobarau.minstrel.MainActivity
 import com.jacobarau.minstrel.NOTIFICATION_CHANNEL_ID
 import com.jacobarau.minstrel.R
+import com.jacobarau.minstrel.data.PlaybackStateRepository
 import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.player.PlaybackState
 import com.jacobarau.minstrel.player.Player
@@ -29,9 +30,13 @@ import com.jacobarau.minstrel.repository.TrackRepository
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
@@ -52,9 +57,14 @@ class PlayerService : LifecycleService() {
     @Inject
     lateinit var trackRepository: TrackRepository
 
+    @Inject
+    lateinit var playbackStateRepository: PlaybackStateRepository
+
     private lateinit var mediaSession: MediaSessionCompat
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var isStarted = false
+    private val currentSearchQueryFlow = MutableStateFlow<String?>(null)
+    private var progressSaverJob: Job? = null
 
     private val becomingNoisyReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -104,6 +114,7 @@ class PlayerService : LifecycleService() {
 
         override fun onPlayFromMediaId(mediaId: String, extras: Bundle?) {
             Log.d(tag, "onPlayFromMediaId $mediaId, extras: $extras")
+            currentSearchQueryFlow.value = null
             if (!isStarted) {
                 startForegroundService(Intent(applicationContext, PlayerService::class.java))
             }
@@ -120,21 +131,21 @@ class PlayerService : LifecycleService() {
 
         override fun onPlayFromSearch(query: String?, extras: Bundle?) {
             Log.d(tag, "onPlayFromSearch query: $query")
+            currentSearchQueryFlow.value = query
             if (!isStarted) {
                 startForegroundService(Intent(applicationContext, PlayerService::class.java))
             }
 
             serviceScope.launch {
-                //TODO delegate the searching to the TrackRepository
                 val trackListState = trackRepository.getTracks().first { it is TrackListState.Success }
                 if (trackListState is TrackListState.Success) {
                     val allTracks = trackListState.tracks
                     if (allTracks.isEmpty()) return@launch
 
-                    val trackToPlay = if (query.isNullOrBlank()) {
-                        allTracks.first()
+                    val tracksToPlay = if (query.isNullOrBlank()) {
+                        allTracks
                     } else {
-                        allTracks.firstOrNull {
+                        allTracks.filter {
                             it.title?.contains(query, ignoreCase = true) == true ||
                                     it.artist?.contains(query, ignoreCase = true) == true ||
                                     it.album?.contains(query, ignoreCase = true) == true ||
@@ -142,8 +153,8 @@ class PlayerService : LifecycleService() {
                         }
                     }
 
-                    if (trackToPlay != null) {
-                        player.play(allTracks, trackToPlay)
+                    if (tracksToPlay.isNotEmpty()) {
+                        player.play(tracksToPlay, tracksToPlay.first())
                     } else {
                         Log.w(tag, "No results for query: $query")
                     }
@@ -179,7 +190,7 @@ class PlayerService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(tag, "onCreate")
+        Log.i(tag, "onCreate")
 
         mediaSession = MediaSessionCompat(this, "Minstrel-Player").apply {
             setCallback(sessionCallback)
@@ -187,6 +198,44 @@ class PlayerService : LifecycleService() {
         }
 
         registerReceiver(becomingNoisyReceiver, intentFilter)
+
+        serviceScope.launch {
+            Log.i(tag, "Attempting to restore playback state...")
+            val storedPlaybackState = playbackStateRepository.storedPlaybackState.first()
+            Log.i(tag, "Restored state: $storedPlaybackState")
+            player.setShuffleModeEnabled(storedPlaybackState.isShuffleEnabled)
+            if (storedPlaybackState.trackUri != null) {
+                val trackListState = trackRepository.getTracks().first { it is TrackListState.Success }
+                if (trackListState is TrackListState.Success) {
+                    val allTracks = trackListState.tracks
+                    val query = storedPlaybackState.searchQuery
+                    currentSearchQueryFlow.value = query
+                    val tracksToPlay = if (query.isNullOrBlank()) {
+                        allTracks
+                    } else {
+                        allTracks.filter {
+                            it.title?.contains(query, ignoreCase = true) == true ||
+                                    it.artist?.contains(query, ignoreCase = true) == true ||
+                                    it.album?.contains(query, ignoreCase = true) == true ||
+                                    it.filename.contains(query, ignoreCase = true)
+                        }
+                    }
+
+                    val track = tracksToPlay.firstOrNull { it.uri.toString() == storedPlaybackState.trackUri }
+                    if (track != null) {
+                        Log.i(tag, "Track found. Setting player state.")
+                        player.play(tracksToPlay, track, playWhenReady = false)
+                        player.seekTo(storedPlaybackState.position)
+                    } else {
+                        Log.w(tag, "Track URI found in stored state, but track not found in repository.")
+                    }
+                }
+            } else {
+                Log.i(tag, "No track URI in stored state. Nothing to restore.")
+            }
+        }
+        startPlaybackStateSaver()
+
 
         combine(player.tracks, player.currentTrack) { tracks, currentTrack ->
             Pair(tracks, currentTrack)
@@ -309,6 +358,56 @@ class PlayerService : LifecycleService() {
             .launchIn(serviceScope)
     }
 
+    private fun savePlaybackState() {
+        val track = player.currentTrack.value
+        val position = player.trackProgressMillis.value
+        val isShuffleEnabled = player.shuffleModeEnabled.value
+        val query = currentSearchQueryFlow.value
+        Log.i(
+            tag, "Saving playback state. Track: ${track?.uri}, " +
+                "Position: $position, Query: $query, Shuffle: $isShuffleEnabled"
+        )
+        serviceScope.launch {
+            playbackStateRepository.savePlaybackState(
+                track?.uri.toString(),
+                position,
+                query,
+                isShuffleEnabled
+            )
+        }
+    }
+
+    private fun startPlaybackStateSaver() {
+        // Save state whenever track, shuffle mode, or search query changes, coalescing rapid changes.
+        combine(
+            player.currentTrack,
+            player.shuffleModeEnabled,
+            currentSearchQueryFlow
+        ) { _, _, _ -> }
+            .debounce(250)
+            .onEach {
+                savePlaybackState()
+            }.launchIn(serviceScope)
+
+        // Also save state on pause/stop, and periodically on play
+        player.playbackState.onEach { state ->
+            progressSaverJob?.cancel()
+            when (state) {
+                is PlaybackState.Playing -> {
+                    progressSaverJob = serviceScope.launch {
+                        while (true) {
+                            savePlaybackState()
+                            delay(5000)
+                        }
+                    }
+                }
+                is PlaybackState.Paused, is PlaybackState.Stopped -> {
+                    savePlaybackState()
+                }
+            }
+        }.launchIn(serviceScope)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         Log.d(tag, "onStartCommand $intent $flags $startId")
@@ -409,7 +508,7 @@ class PlayerService : LifecycleService() {
     }
 
     override fun onDestroy() {
-        Log.d(tag, "onDestroy")
+        Log.i(tag, "onDestroy")
         isStarted = false
         super.onDestroy()
         serviceScope.cancel()

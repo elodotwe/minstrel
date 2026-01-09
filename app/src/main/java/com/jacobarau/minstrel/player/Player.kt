@@ -10,7 +10,7 @@ interface Player {
     val trackProgressMillis: StateFlow<Long>
     val trackDurationMillis: StateFlow<Long>
     val shuffleModeEnabled: StateFlow<Boolean>
-    fun play(tracks: List<Track>, track: Track)
+    fun play(tracks: List<Track>, track: Track, playWhenReady: Boolean = true)
     fun togglePlayPause()
     fun pause()
     fun unpause()

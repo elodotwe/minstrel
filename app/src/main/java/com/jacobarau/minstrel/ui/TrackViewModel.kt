@@ -42,45 +42,18 @@ class TrackViewModel @Inject constructor(
         )
 
     val isPreviousEnabled: StateFlow<Boolean> = combine(tracks, playbackState) { trackListState, playbackState ->
-        if (trackListState !is TrackListState.Success || playbackState is PlaybackState.Stopped) {
+        if (trackListState !is TrackListState.Success || playbackState !is PlaybackState.Playing) {
             return@combine false
         }
-        val currentTrack = when (playbackState) {
-            is PlaybackState.Playing -> playbackState.track
-            is PlaybackState.Paused -> playbackState.track
-            else -> null
-        }
-        val currentIndex = trackListState.tracks.indexOf(currentTrack)
-        return@combine currentIndex > 0
+        return@combine playbackState.currentTrackIndex > 0
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), false)
 
     val isNextEnabled: StateFlow<Boolean> = combine(tracks, playbackState) { trackListState, playbackState ->
-        if (trackListState !is TrackListState.Success || playbackState is PlaybackState.Stopped) {
+        if (trackListState !is TrackListState.Success || playbackState !is PlaybackState.Playing) {
             return@combine false
         }
-        val currentTrack = when (playbackState) {
-            is PlaybackState.Playing -> playbackState.track
-            is PlaybackState.Paused -> playbackState.track
-            else -> null
-        }
-        val currentIndex = trackListState.tracks.indexOf(currentTrack)
-        return@combine currentIndex < trackListState.tracks.size - 1
+        return@combine playbackState.currentTrackIndex < playbackState.tracks.size - 1
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5.seconds), false)
-
-
-    val trackProgressMillis: StateFlow<Long> = player.trackProgressMillis
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = 0L
-        )
-
-    val trackDurationMillis: StateFlow<Long> = player.trackDurationMillis
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = 0L
-        )
 
     val shuffleModeEnabled: StateFlow<Boolean> = player.shuffleModeEnabled
         .stateIn(

@@ -14,7 +14,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -36,22 +35,12 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     private val playerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val _tracks = MutableStateFlow<List<Track>>(emptyList())
-    override val tracks: StateFlow<List<Track>> = _tracks.asStateFlow()
 
     private val _playbackState = MutableStateFlow<PlaybackState>(PlaybackState.Stopped)
     override val playbackState = _playbackState.asStateFlow()
 
-    private val _currentTrack = MutableStateFlow<Track?>(null)
-    override val currentTrack = _currentTrack.asStateFlow()
-
-    private val _trackProgressMillis = MutableStateFlow(0L)
-    override val trackProgressMillis: StateFlow<Long> = _trackProgressMillis.asStateFlow()
-
-    private val _trackDurationMillis = MutableStateFlow(0L)
-    override val trackDurationMillis: StateFlow<Long> = _trackDurationMillis.asStateFlow()
-
     private val _shuffleModeEnabled = MutableStateFlow(false)
-    override val shuffleModeEnabled: StateFlow<Boolean> = _shuffleModeEnabled.asStateFlow()
+    override val shuffleModeEnabled = _shuffleModeEnabled.asStateFlow()
 
     init {
         exoPlayer.addListener(object : ExoPlayerListener.Listener {
@@ -61,16 +50,9 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
 
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 updatePlaybackState()
-                _trackDurationMillis.value = exoPlayer.duration
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                if (playbackState == ExoPlayer.STATE_READY) {
-                    _trackDurationMillis.value = exoPlayer.duration
-                }
-                if (playbackState == ExoPlayerListener.STATE_ENDED) {
-                    _playbackState.value = PlaybackState.Stopped
-                }
                 updatePlaybackState()
             }
         })
@@ -78,7 +60,10 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
         playerScope.launch {
             while (true) {
                 if (exoPlayer.isPlaying) {
-                    _trackProgressMillis.value = exoPlayer.currentPosition
+                    val currentState = _playbackState.value
+                    if (currentState is PlaybackState.Playing) {
+                        _playbackState.value = currentState.copy(trackProgressMillis = exoPlayer.currentPosition)
+                    }
                 }
                 delay(1000)
             }
@@ -86,13 +71,22 @@ class ExoPlayerPlayer @Inject constructor(@ApplicationContext context: Context) 
     }
 
     private fun updatePlaybackState() {
-        val currentTrack = _tracks.value.getOrNull(exoPlayer.currentMediaItemIndex)
-        _currentTrack.value = currentTrack
+        val currentMediaItemIndex = exoPlayer.currentMediaItemIndex
+        val currentTrack = _tracks.value.getOrNull(currentMediaItemIndex)
 
-        _playbackState.value = when {
-            exoPlayer.isPlaying -> currentTrack?.let { PlaybackState.Playing(it) } ?: PlaybackState.Stopped
-            exoPlayer.playbackState == ExoPlayer.STATE_IDLE || exoPlayer.playbackState == ExoPlayer.STATE_ENDED -> PlaybackState.Stopped
-            else -> currentTrack?.let { PlaybackState.Paused(it) } ?: PlaybackState.Stopped
+        val playbackState = exoPlayer.playbackState
+        val isPlaying = exoPlayer.isPlaying
+
+        if (currentTrack == null || playbackState == ExoPlayer.STATE_IDLE || playbackState == ExoPlayer.STATE_ENDED) {
+            _playbackState.value = PlaybackState.Stopped
+        } else {
+            _playbackState.value = PlaybackState.Playing(
+                isPaused = !isPlaying,
+                tracks = _tracks.value,
+                currentTrackIndex = currentMediaItemIndex,
+                trackProgressMillis = exoPlayer.currentPosition,
+                trackDurationMillis = exoPlayer.duration
+            )
         }
     }
 

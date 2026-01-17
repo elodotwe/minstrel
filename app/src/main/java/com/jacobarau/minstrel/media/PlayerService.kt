@@ -35,7 +35,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -240,15 +239,12 @@ class PlayerService : LifecycleService() {
         }
         startPlaybackStateSaver()
 
-
-        combine(player.tracks, player.currentTrack) { tracks, currentTrack ->
-            Pair(tracks, currentTrack)
-        }
-            .onEach { (tracks, currentTrack) ->
+        player.playbackState.onEach { state ->
+            if (state is PlaybackState.Playing) {
                 Log.d(tag, "Tracks or current track changed. Updating queue.")
 
                 val allQueueItems =
-                    tracks.mapIndexed { index, track -> track.toQueueItem(index.toLong()) }
+                    state.tracks.mapIndexed { index, track -> track.toQueueItem(index.toLong()) }
 
 
                 val maxQueueLength = 100
@@ -256,12 +252,10 @@ class PlayerService : LifecycleService() {
                     // If the list is small enough, just use it as is.
                     allQueueItems
                 } else {
-                    val currentIndex = tracks.indexOf(currentTrack)
-
                     // If the current track isn't found or is early in the list,
                     // we can safely start the sublist from its index.
                     // We use coerceAtLeast(0) to treat the "not found" case (-1) as the start of the list.
-                    val startIndex = currentIndex.coerceAtLeast(0)
+                    val startIndex = state.currentTrackIndex.coerceAtLeast(0)
 
                     // Determine the end index. It's either the start + 100 or the end of the list.
                     val endIndex = (startIndex + maxQueueLength).coerceAtMost(allQueueItems.size)
@@ -279,14 +273,15 @@ class PlayerService : LifecycleService() {
                 // too many items.
                 mediaSession.setQueue(queue)
                 mediaSession.setQueueTitle("Up Next")
+            } else {
+                mediaSession.setQueue(emptyList())
             }
-            .launchIn(serviceScope)
+        }.launchIn(serviceScope)
 
-        combine(player.currentTrack, player.trackDurationMillis) { track, duration ->
-            Pair(track, duration)
-        }
-            .distinctUntilChanged()
-            .onEach { (track, duration) ->
+        player.playbackState.onEach { state ->
+            if (state is PlaybackState.Playing) {
+                val track = state.tracks.getOrNull(state.currentTrackIndex)
+                val duration = state.trackDurationMillis
                 Log.d(tag, "Track or duration changed. Updating metadata.")
                 val metadataBuilder = MediaMetadataCompat.Builder()
                     .putString(MediaMetadataCompat.METADATA_KEY_TITLE, track?.title)
@@ -300,8 +295,11 @@ class PlayerService : LifecycleService() {
                 )
 
                 mediaSession.setMetadata(metadataBuilder.build())
+            } else {
+                mediaSession.setMetadata(null)
             }
-            .launchIn(serviceScope)
+        }.launchIn(serviceScope)
+
 
         player.playbackState
             .onEach { state ->
@@ -321,12 +319,8 @@ class PlayerService : LifecycleService() {
 
         combine(
             player.playbackState,
-            player.currentTrack,
-            player.tracks,
-            player.trackProgressMillis,
             player.shuffleModeEnabled
-        ) { state, track, tracks, progress, shuffleEnabled ->
-            val trackIndex = tracks.indexOf(track)
+        ) { state, shuffleEnabled ->
             var actions = PlaybackStateCompat.ACTION_PLAY or
                     PlaybackStateCompat.ACTION_PAUSE or
                     PlaybackStateCompat.ACTION_PLAY_PAUSE or
@@ -334,10 +328,13 @@ class PlayerService : LifecycleService() {
                     PlaybackStateCompat.ACTION_SEEK_TO or
                     PlaybackStateCompat.ACTION_SKIP_TO_QUEUE_ITEM
 
+            val trackIndex = if (state is PlaybackState.Playing) state.currentTrackIndex else -1
+            val tracksSize = if (state is PlaybackState.Playing) state.tracks.size else 0
+
             if (trackIndex > 0) {
                 actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS
             }
-            if (trackIndex < tracks.size - 1) {
+            if (trackIndex < tracksSize - 1) {
                 actions = actions or PlaybackStateCompat.ACTION_SKIP_TO_NEXT
             }
 
@@ -361,7 +358,7 @@ class PlayerService : LifecycleService() {
                 .addCustomAction(stopAction)
                 .setState(
                     state.toPlaybackStateCompat(),
-                    progress,
+                    if (state is PlaybackState.Playing) state.trackProgressMillis else 0,
                     1.0f
                 )
                 .setActiveQueueItemId(trackIndex.toLong())
@@ -374,28 +371,43 @@ class PlayerService : LifecycleService() {
     }
 
     private fun savePlaybackState() {
-        val track = player.currentTrack.value
-        val position = player.trackProgressMillis.value
+        val state = player.playbackState.value
         val isShuffleEnabled = player.shuffleModeEnabled.value
         val query = currentSearchQueryFlow.value
-        Log.i(
-            tag, "Saving playback state. Track: ${track?.uri}, " +
-                "Position: $position, Query: $query, Shuffle: $isShuffleEnabled"
-        )
-        serviceScope.launch {
-            playbackStateRepository.savePlaybackState(
-                track?.uri.toString(),
-                position,
-                query,
-                isShuffleEnabled
+        
+        if (state is PlaybackState.Playing) {
+            val track = state.tracks.getOrNull(state.currentTrackIndex)
+            Log.i(
+                tag, "Saving playback state. Track: ${track?.uri}, " +
+                    "Position: ${state.trackProgressMillis}, Query: $query, Shuffle: $isShuffleEnabled"
             )
+            serviceScope.launch {
+                playbackStateRepository.savePlaybackState(
+                    track?.uri.toString(),
+                    state.trackProgressMillis,
+                    query,
+                    isShuffleEnabled
+                )
+            }
+        } else {
+            Log.i(
+                tag, "Saving playback state. No track playing."
+            )
+            serviceScope.launch {
+                playbackStateRepository.savePlaybackState(
+                    null,
+                    0,
+                    query,
+                    isShuffleEnabled
+                )
+            }
         }
     }
 
     private fun startPlaybackStateSaver() {
         // Save state whenever track, shuffle mode, or search query changes, coalescing rapid changes.
         combine(
-            player.currentTrack,
+            player.playbackState,
             player.shuffleModeEnabled,
             currentSearchQueryFlow
         ) { _, _, _ -> }
@@ -407,16 +419,15 @@ class PlayerService : LifecycleService() {
         // Also save state on pause/stop, and periodically on play
         player.playbackState.onEach { state ->
             progressSaverJob?.cancel()
-            when (state) {
-                is PlaybackState.Playing -> {
+            if (state is PlaybackState.Playing) {
+                if (!state.isPaused) {
                     progressSaverJob = serviceScope.launch {
                         while (true) {
                             savePlaybackState()
                             delay(5000)
                         }
                     }
-                }
-                is PlaybackState.Paused, is PlaybackState.Stopped -> {
+                } else {
                     savePlaybackState()
                 }
             }
@@ -434,7 +445,7 @@ class PlayerService : LifecycleService() {
     private fun updateNotification(state: PlaybackState) {
         Log.d(tag, "updateNotification $state")
         when (state) {
-            is PlaybackState.Playing, is PlaybackState.Paused -> {
+            is PlaybackState.Playing -> {
                 val notification = createNotification(state)
                 startForeground(NOTIFICATION_ID, notification)
             }
@@ -457,7 +468,7 @@ class PlayerService : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val playPauseAction = if (state is PlaybackState.Playing) {
+        val playPauseAction = if (state is PlaybackState.Playing && !state.isPaused) {
             NotificationCompat.Action(
                 R.drawable.ic_pause,
                 "Pause",

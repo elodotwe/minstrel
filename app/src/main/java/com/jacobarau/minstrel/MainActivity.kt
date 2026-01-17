@@ -33,7 +33,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -95,8 +94,6 @@ class MainActivity : ComponentActivity() {
             MinstrelTheme {
                 val trackListState by viewModel.tracks.collectAsStateWithLifecycle()
                 val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
-                val trackProgress by viewModel.trackProgressMillis.collectAsStateWithLifecycle()
-                val trackDuration by viewModel.trackDurationMillis.collectAsStateWithLifecycle()
                 val isPreviousEnabled by viewModel.isPreviousEnabled.collectAsStateWithLifecycle()
                 val isNextEnabled by viewModel.isNextEnabled.collectAsStateWithLifecycle()
                 val shuffleModeEnabled by viewModel.shuffleModeEnabled.collectAsStateWithLifecycle()
@@ -224,12 +221,9 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     bottomBar = {
-                        if (playbackState !is PlaybackState.Stopped) {
-                            val track = when (val state = playbackState) {
-                                is PlaybackState.Playing -> state.track
-                                is PlaybackState.Paused -> state.track
-                                else -> null
-                            }
+                        if (playbackState is PlaybackState.Playing) {
+                            val playingState = playbackState as PlaybackState.Playing
+                            val track = playingState.tracks.getOrNull(playingState.currentTrackIndex)
                             if (track != null) {
                                 Surface(tonalElevation = 3.dp) {
                                     Column(
@@ -238,7 +232,7 @@ class MainActivity : ComponentActivity() {
                                             .padding(16.dp)
                                     ) {
                                         val duration =
-                                            trackDuration.toFloat().coerceAtLeast(0f)
+                                            playingState.trackDurationMillis.toFloat().coerceAtLeast(0f)
 
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             var isAlbumArtVisible by remember { mutableStateOf(true) }
@@ -269,7 +263,7 @@ class MainActivity : ComponentActivity() {
                                                         modifier = Modifier.weight(1f)
                                                     )
                                                     Text(
-                                                        text = formatTime(trackProgress),
+                                                        text = formatTime(playingState.trackProgressMillis),
                                                         style = MaterialTheme.typography.bodyMedium,
                                                         modifier = Modifier.padding(start = 8.dp)
                                                     )
@@ -278,13 +272,13 @@ class MainActivity : ComponentActivity() {
                                                         style = MaterialTheme.typography.bodyMedium
                                                     )
                                                     Text(
-                                                        text = formatTime(trackDuration),
+                                                        text = formatTime(playingState.trackDurationMillis),
                                                         style = MaterialTheme.typography.bodyMedium
                                                     )
                                                 }
 
                                                 Slider(
-                                                    value = trackProgress
+                                                    value = playingState.trackProgressMillis
                                                         .toFloat()
                                                         .coerceIn(0f, duration),
                                                     onValueChange = { viewModel.onSeek(it.toLong()) },
@@ -316,7 +310,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.size(80.dp) // Make play/pause bigger
                                             ) {
                                                 Icon(
-                                                    imageVector = if (playbackState is PlaybackState.Playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                                    imageVector = if (!playingState.isPaused) Icons.Default.Pause else Icons.Default.PlayArrow,
                                                     contentDescription = "Play/Pause",
                                                     modifier = Modifier.size(48.dp)
                                                 )
@@ -394,10 +388,10 @@ fun TrackList(
             }
 
             is TrackListState.Success -> {
-                val currentTrack = when (playbackState) {
-                    is PlaybackState.Playing -> playbackState.track
-                    is PlaybackState.Paused -> playbackState.track
-                    else -> null
+                val currentTrack = if (playbackState is PlaybackState.Playing) {
+                    playbackState.tracks.getOrNull(playbackState.currentTrackIndex)
+                } else {
+                    null
                 }
                 val lazyListState = rememberLazyListState()
                 val flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState, snapPosition = SnapPosition.Start)
@@ -514,9 +508,13 @@ fun MainActivityPreview() {
                 track2
             )
         )
-        val playbackState = PlaybackState.Playing(track1)
-        val trackProgress = 15000L
-        val trackDuration = 120000L
+        val playbackState = PlaybackState.Playing(
+            isPaused = false,
+            tracks = listOf(track1, track2),
+            currentTrackIndex = 0,
+            trackProgressMillis = 15000L,
+            trackDurationMillis = 120000L
+        )
         val isPreviousEnabled = false
         val isNextEnabled = true
         val shuffleModeEnabled = true
@@ -587,12 +585,9 @@ fun MainActivityPreview() {
                 )
             },
             bottomBar = {
-                if (playbackState !is PlaybackState.Stopped) {
-                    val track = when (val state = playbackState) {
-                        is PlaybackState.Playing -> state.track
-                        is PlaybackState.Paused -> state.track
-                        else -> null
-                    }
+                if (playbackState is PlaybackState.Playing) {
+                    val playingState = playbackState as PlaybackState.Playing
+                    val track = playingState.tracks.getOrNull(playingState.currentTrackIndex)
                     if (track != null) {
                         Surface(tonalElevation = 3.dp) {
                             Column(
@@ -601,7 +596,7 @@ fun MainActivityPreview() {
                                     .padding(16.dp)
                             ) {
                                 val duration =
-                                    trackDuration.toFloat().coerceAtLeast(0f)
+                                    playingState.trackDurationMillis.toFloat().coerceAtLeast(0f)
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -615,7 +610,7 @@ fun MainActivityPreview() {
                                         modifier = Modifier.weight(1f)
                                     )
                                     Text(
-                                        text = formatTime(trackProgress),
+                                        text = formatTime(playingState.trackProgressMillis),
                                         style = MaterialTheme.typography.bodyMedium,
                                         modifier = Modifier.padding(start = 8.dp)
                                     )
@@ -624,13 +619,13 @@ fun MainActivityPreview() {
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                     Text(
-                                        text = formatTime(trackDuration),
+                                        text = formatTime(playingState.trackDurationMillis),
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
 
                                 Slider(
-                                    value = trackProgress
+                                    value = playingState.trackProgressMillis
                                         .toFloat()
                                         .coerceIn(0f, duration),
                                     onValueChange = { },
@@ -660,7 +655,7 @@ fun MainActivityPreview() {
                                         modifier = Modifier.size(80.dp)
                                     ) {
                                         Icon(
-                                            imageVector = if (playbackState is PlaybackState.Playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                            imageVector = if (!playingState.isPaused) Icons.Default.Pause else Icons.Default.PlayArrow,
                                             contentDescription = "Play/Pause",
                                             modifier = Modifier.size(48.dp)
                                         )

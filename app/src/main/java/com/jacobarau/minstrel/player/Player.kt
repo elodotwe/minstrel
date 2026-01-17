@@ -5,10 +5,6 @@ import kotlinx.coroutines.flow.StateFlow
 
 interface Player {
     val playbackState: StateFlow<PlaybackState>
-    val currentTrack: StateFlow<Track?>
-    val tracks: StateFlow<List<Track>>
-    val trackProgressMillis: StateFlow<Long>
-    val trackDurationMillis: StateFlow<Long>
     val shuffleModeEnabled: StateFlow<Boolean>
     fun play(tracks: List<Track>, track: Track, playWhenReady: Boolean = true)
     fun togglePlayPause()

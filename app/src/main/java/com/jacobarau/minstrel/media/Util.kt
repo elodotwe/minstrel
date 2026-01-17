@@ -9,8 +9,7 @@ import com.jacobarau.minstrel.player.PlaybackState
 
 fun PlaybackState.toPlaybackStateCompat(): Int {
     return when (this) {
-        is PlaybackState.Playing -> PlaybackStateCompat.STATE_PLAYING
-        is PlaybackState.Paused -> PlaybackStateCompat.STATE_PAUSED
+        is PlaybackState.Playing -> if (isPaused) PlaybackStateCompat.STATE_PAUSED else PlaybackStateCompat.STATE_PLAYING
         is PlaybackState.Stopped -> PlaybackStateCompat.STATE_STOPPED
     }
 }

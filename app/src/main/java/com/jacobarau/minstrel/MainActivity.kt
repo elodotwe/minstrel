@@ -72,9 +72,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
-import com.jacobarau.minstrel.media.PlayerService
 import com.jacobarau.minstrel.player.PlaybackState
-import com.jacobarau.minstrel.ui.TrackViewModel
+import com.jacobarau.minstrel.ui.PlayerViewModel
 import com.jacobarau.minstrel.ui.theme.MinstrelTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -83,13 +82,12 @@ import java.util.concurrent.TimeUnit
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: TrackViewModel by viewModels()
+    private val viewModel: PlayerViewModel by viewModels()
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        startService(Intent(this, PlayerService::class.java))
         setContent {
             MinstrelTheme {
                 val trackListState by viewModel.tracks.collectAsStateWithLifecycle()

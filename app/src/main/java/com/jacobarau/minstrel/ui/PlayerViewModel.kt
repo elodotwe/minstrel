@@ -6,6 +6,7 @@ import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.player.Player
 import com.jacobarau.minstrel.player.PlaybackState
+import com.jacobarau.minstrel.player.PlayerRepository
 import com.jacobarau.minstrel.repository.TrackRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,10 +20,17 @@ import javax.inject.Inject
 import kotlin.time.Duration.Companion.seconds
 
 @HiltViewModel
-class TrackViewModel @Inject constructor(
+class PlayerViewModel @Inject constructor(
     private val trackRepository: TrackRepository,
-    private val player: Player
+    private val playerRepository: PlayerRepository
 ) : ViewModel() {
+
+    private val player: Player = playerRepository.getPlayer()
+
+    init {
+        playerRepository.bind()
+        addCloseable { playerRepository.unbind() }
+    }
 
     private val searchQuery = MutableStateFlow<String?>(null)
 

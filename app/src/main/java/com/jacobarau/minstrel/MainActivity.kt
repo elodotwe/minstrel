@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.ui.MinstrelSearchBar
 import com.jacobarau.minstrel.ui.PlayerViewModel
 import com.jacobarau.minstrel.ui.SearchOverlay
@@ -49,6 +50,12 @@ class MainActivity : ComponentActivity() {
                 var searchQuery by remember { mutableStateOf("") }
                 var showSearchOverlay by remember { mutableStateOf(false) }
 
+                val currentSortDimension = if (trackListState is TrackListState.Success) {
+                    (trackListState as TrackListState.Success).sortDimension
+                } else {
+                    null
+                }
+
                 if (showSearchOverlay) {
                     SearchOverlay(
                         searchQuery = searchQuery,
@@ -71,7 +78,12 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .imePadding(),
                         topBar = {
-                            MinstrelSearchBar()
+                            MinstrelSearchBar(
+                                currentSortDimension = currentSortDimension,
+                                onSortDimensionChanged = { dimension ->
+                                    viewModel.onSortDimensionChanged(dimension)
+                                }
+                            )
                         },
                         floatingActionButton = {
                             FloatingActionButton(

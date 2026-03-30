@@ -2,19 +2,24 @@ package com.jacobarau.minstrel.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.jacobarau.minstrel.data.GroupedTrackItem
+import com.jacobarau.minstrel.data.SortDimension
 import com.jacobarau.minstrel.data.Track
+import com.jacobarau.minstrel.data.TrackGrouper
 import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.player.Player
 import com.jacobarau.minstrel.player.PlaybackState
 import com.jacobarau.minstrel.player.PlayerRepository
 import com.jacobarau.minstrel.repository.TrackRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.WhileSubscribed
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.seconds
@@ -33,14 +38,34 @@ class PlayerViewModel @Inject constructor(
     }
 
     private val searchQuery = MutableStateFlow<String?>(null)
+    private val sortDimension = MutableStateFlow<SortDimension?>(null)
 
-    val tracks: StateFlow<TrackListState> = searchQuery.flatMapLatest { query ->
-        trackRepository.getTracks(query)
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = TrackListState.Loading
-    )
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val tracks: StateFlow<TrackListState> = combine(
+        searchQuery,
+        sortDimension,
+        trackRepository.getTracks(null).flatMapLatest { state ->
+            if (state is TrackListState.Success) {
+                kotlinx.coroutines.flow.flowOf(state)
+            } else {
+                kotlinx.coroutines.flow.flowOf(state)
+            }
+        }
+    ) { query, sort, trackState ->
+        trackRepository.getTracks(query).map { state ->
+            if (state is TrackListState.Success) {
+                val groupedItems = TrackGrouper.groupAndSort(state.tracks, sort)
+                state.copy(groupedItems = groupedItems, sortDimension = sort)
+            } else {
+                state
+            }
+        }
+    }.flatMapLatest { it }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = TrackListState.Loading
+        )
 
     val playbackState: StateFlow<PlaybackState> = player.playbackState
         .stateIn(
@@ -98,5 +123,9 @@ class PlayerViewModel @Inject constructor(
 
     fun onShuffleClicked() {
         player.setShuffleModeEnabled(!shuffleModeEnabled.value)
+    }
+
+    fun onSortDimensionChanged(dimension: SortDimension?) {
+        sortDimension.value = dimension
     }
 }

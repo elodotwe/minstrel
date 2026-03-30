@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.jacobarau.minstrel.data.GroupedTrackItem
+import com.jacobarau.minstrel.data.SortDimension
 import com.jacobarau.minstrel.data.Track
 import com.jacobarau.minstrel.data.TrackListState
 import com.jacobarau.minstrel.player.PlaybackState
@@ -51,80 +53,204 @@ fun TrackList(
             }
 
             is TrackListState.Success -> {
-                val currentTrack = if (playbackState is PlaybackState.Playing) {
-                    playbackState.tracks.getOrNull(playbackState.currentTrackIndex)
+                if (trackListState.sortDimension != null && trackListState.groupedItems.isNotEmpty()) {
+                    GroupedTrackListView(
+                        groupedItems = trackListState.groupedItems,
+                        trackListState = trackListState,
+                        playbackState = playbackState,
+                        onTrackSelected = onTrackSelected,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 } else {
-                    null
+                    UngroupedTrackListView(
+                        tracks = trackListState.tracks,
+                        playbackState = playbackState,
+                        onTrackSelected = onTrackSelected,
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
-                val lazyListState = rememberLazyListState()
-                val flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState, snapPosition = SnapPosition.Start)
-                val coroutineScope = rememberCoroutineScope()
+            }
+        }
+    }
+}
 
-                LaunchedEffect(currentTrack, trackListState) {
-                    currentTrack?.let {
-                        val index = trackListState.tracks.indexOf(it)
-                        if (index != -1) {
-                            coroutineScope.launch {
-                                lazyListState.animateScrollToItem(index)
-                            }
-                        }
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GroupedTrackListView(
+    groupedItems: List<GroupedTrackItem>,
+    trackListState: TrackListState.Success,
+    playbackState: PlaybackState,
+    onTrackSelected: (Track) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val currentTrack = if (playbackState is PlaybackState.Playing) {
+        playbackState.tracks.getOrNull(playbackState.currentTrackIndex)
+    } else {
+        null
+    }
+    val lazyListState = rememberLazyListState()
+    val flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState, snapPosition = SnapPosition.Start)
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(currentTrack, trackListState) {
+        currentTrack?.let {
+            val index = groupedItems.indexOfFirst { item ->
+                item is GroupedTrackItem.TrackItem && item.track == it
+            }
+            if (index != -1) {
+                coroutineScope.launch {
+                    lazyListState.animateScrollToItem(index)
+                }
+            }
+        }
+    }
+
+    LazyColumn(
+        state = lazyListState,
+        flingBehavior = flingBehavior,
+        modifier = modifier
+    ) {
+        groupedItems.forEach { item ->
+            when (item) {
+                is GroupedTrackItem.GroupHeader -> {
+                    stickyHeader(
+                        key = "header_${item.groupName}"
+                    ) {
+                        GroupHeader(
+                            groupName = item.groupName,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
 
-                LazyColumn(
-                    state = lazyListState,
-                    flingBehavior = flingBehavior,
-                    modifier = Modifier
-                        .fillMaxSize()
-                ) {
-                    itemsIndexed(trackListState.tracks) { _, track ->
-                        val isPlaying = track == currentTrack
-                        val backgroundColor = if (isPlaying) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            Color.Transparent
-                        }
-
-                        Column(
-                            modifier = Modifier
-                                .background(backgroundColor)
-                                .clickable { onTrackSelected(track) }
-                                .padding(vertical = 24.dp, horizontal = 16.dp)
-                                .fillMaxWidth()
-                        ) {
-                            val textColor = if (isPlaying) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            }
-                            val secondaryTextColor = if (isPlaying) {
-                                MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                            Text(
-                                text = track.title ?: track.filename,
-                                color = textColor,
-                                style = MaterialTheme.typography.headlineSmall
-                            )
-                            Text(
-                                text = track.directory,
-                                maxLines = 1,
-                                overflow = TextOverflow.StartEllipsis,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = secondaryTextColor
-                            )
-                            Text(
-                                text = track.artist ?: "Unknown Artist",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = secondaryTextColor,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                is GroupedTrackItem.TrackItem -> {
+                    item(
+                        key = "track_${item.track.uri}"
+                    ) {
+                        val isPlaying = item.track == currentTrack
+                        TrackItemView(
+                            track = item.track,
+                            isPlaying = isPlaying,
+                            onTrackSelected = onTrackSelected,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun UngroupedTrackListView(
+    tracks: List<Track>,
+    playbackState: PlaybackState,
+    onTrackSelected: (Track) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val currentTrack = if (playbackState is PlaybackState.Playing) {
+        playbackState.tracks.getOrNull(playbackState.currentTrackIndex)
+    } else {
+        null
+    }
+    val lazyListState = rememberLazyListState()
+    val flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState, snapPosition = SnapPosition.Start)
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(currentTrack, tracks) {
+        currentTrack?.let {
+            val index = tracks.indexOf(it)
+            if (index != -1) {
+                coroutineScope.launch {
+                    lazyListState.animateScrollToItem(index)
+                }
+            }
+        }
+    }
+
+    LazyColumn(
+        state = lazyListState,
+        flingBehavior = flingBehavior,
+        modifier = modifier
+    ) {
+        itemsIndexed(tracks) { _, track ->
+            val isPlaying = track == currentTrack
+            TrackItemView(
+                track = track,
+                isPlaying = isPlaying,
+                onTrackSelected = onTrackSelected,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun GroupHeader(
+    groupName: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(vertical = 8.dp, horizontal = 16.dp)
+    ) {
+        Text(
+            text = groupName,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun TrackItemView(
+    track: Track,
+    isPlaying: Boolean,
+    onTrackSelected: (Track) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (isPlaying) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        Color.Transparent
+    }
+
+    Column(
+        modifier = modifier
+            .background(backgroundColor)
+            .clickable { onTrackSelected(track) }
+            .padding(vertical = 24.dp, horizontal = 16.dp)
+    ) {
+        val textColor = if (isPlaying) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
+        val secondaryTextColor = if (isPlaying) {
+            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+        Text(
+            text = track.title ?: track.filename,
+            color = textColor,
+            style = MaterialTheme.typography.headlineSmall
+        )
+        Text(
+            text = track.directory,
+            maxLines = 1,
+            overflow = TextOverflow.StartEllipsis,
+            style = MaterialTheme.typography.bodyLarge,
+            color = secondaryTextColor
+        )
+        Text(
+            text = track.artist ?: "Unknown Artist",
+            style = MaterialTheme.typography.bodyMedium,
+            color = secondaryTextColor,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 

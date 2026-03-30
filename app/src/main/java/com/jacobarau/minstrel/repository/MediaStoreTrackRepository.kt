@@ -68,7 +68,8 @@ class MediaStoreTrackRepository @Inject constructor(
             MediaStore.Audio.Media.TITLE,
             MediaStore.Audio.Media.ALBUM,
             MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM_ID
+            MediaStore.Audio.Media.ALBUM_ID,
+            MediaStore.Audio.Media.GENRE
         )
 
         val selectionClauses = mutableListOf<String>()
@@ -106,6 +107,7 @@ class MediaStoreTrackRepository @Inject constructor(
             val albumColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
             val artistColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
             val albumIdColumn = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
+            val genreColumn = cursor.getColumnIndex(MediaStore.Audio.Media.GENRE)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 val path = cursor.getString(dataColumn)
@@ -113,6 +115,7 @@ class MediaStoreTrackRepository @Inject constructor(
                 val album = cursor.getString(albumColumn)
                 val artist = cursor.getString(artistColumn)
                 val albumId = cursor.getLong(albumIdColumn)
+                val genre = if (genreColumn >= 0) cursor.getString(genreColumn) else null
                 val file = File(path)
                 val contentUri = ContentUris.withAppendedId(
                     MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
@@ -128,6 +131,7 @@ class MediaStoreTrackRepository @Inject constructor(
                         title,
                         artist,
                         album,
+                        genre,
                         file.name,
                         file.parent ?: "",
                         albumArtUri
